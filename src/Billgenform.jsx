@@ -162,7 +162,7 @@ export default function BillGenForm() {
 
         const rightInfo = `Bill No.: ${formData.billno}
 Bill Date: ${formData.billdate}
-Post : Camera Focus Puller
+Post : ${companyInfo.post}
 Pan No.: ${companyInfo?.panNo || "DA***3*L"}
 GSTIN/UIN : ${formData.gst || ""}`;
         doc.text(rightInfo.split("\n"), 102, 102, { lineHeightFactor: 2 });

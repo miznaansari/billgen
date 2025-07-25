@@ -189,7 +189,7 @@ const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
         let rightInfo = `Bill No.: ${formData.billno}
 Bill Date: ${formData.billdate}
-Post : Camera Focus Puller
+Post : ${form.post || ""}
 Pan No.: ${form?.panNo || "DA***3*L"}
 GSTIN/UIN : ${formData.gst || ""}`;
 
