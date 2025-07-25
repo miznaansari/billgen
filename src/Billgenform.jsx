@@ -115,7 +115,7 @@ export default function BillGenForm() {
         const rawAddress = companyInfo?.address ||
             "Flat No.411, Shree Sai Shraddha Chs. Ltd., Siddhart L.T. Road No.4 & 5, Goregaon West, Mumbai - 400 104";
 
-        const addressLines = splitTextByLength(rawAddress, 60); // 60-char wrap
+        const addressLines = splitTextByLength(rawAddress, 100); // 60-char wrap
 
         doc.text(addressLines, 105, 30, {
             align: "center",
@@ -150,7 +150,14 @@ export default function BillGenForm() {
         const billto = splitTextByLength(formData.billto, 35);
         doc.text(billto, 30, 82);
 
-        let leftInfo = `Project Name : ${formData.projectname}`;
+        doc.setFontSize(11);
+        doc.setFont(undefined, "bold");
+        doc.text("Project Name:", 12, 97);
+        doc.setFont(undefined, "bold");
+        const projectname = splitTextByLength(formData.projectname, 35);
+        doc.text(projectname, 37, 97);
+
+        let leftInfo = ``;
         if (formData.campaign) leftInfo += `\nCampaign Code : ${formData.campaign}`;
         leftInfo += `\nGPay/Phonepe: ${companyInfo?.gpayPhonepe || "+91 1231231231"}`;
         leftInfo += `\nBank Name : ${companyInfo?.bankName || "Bank of ****"}`;
@@ -162,7 +169,7 @@ export default function BillGenForm() {
 
         const rightInfo = `Bill No.: ${formData.billno}
 Bill Date: ${formData.billdate}
-Post : ${companyInfo.post}
+Post : ${companyInfo.post || ''}
 Pan No.: ${companyInfo?.panNo || "DA***3*L"}
 GSTIN/UIN : ${formData.gst || ""}`;
         doc.text(rightInfo.split("\n"), 102, 102, { lineHeightFactor: 2 });
