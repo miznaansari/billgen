@@ -220,7 +220,7 @@ GSTIN/UIN : ${formData.gst || ""}`;
       try {
       doc.text(`Signature`, 12, 272);
 
-        doc.addImage(companyInfo.digitalSignature, "PNG", 29, 260, 40, 15);
+        doc.addImage(companyInfo.digitalSignature, "PNG", 29, 265, 40, 10);
       } catch (err) {
         console.error("❌ Failed to add signature image:", err);
         doc.text("Signature: [Invalid Image]", 12, 272);

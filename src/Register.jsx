@@ -374,7 +374,7 @@ export default function Register() {
             <SignatureCanvas
               ref={sigCanvas}
               penColor="black"
-              canvasProps={{ className: "border border-black w-full h-20 rounded" }}
+              canvasProps={{ className: "border border-black w-full h-40 rounded" }}
             />
 
             <div className="flex justify-between mt-3">
