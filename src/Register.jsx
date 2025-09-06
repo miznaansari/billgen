@@ -270,6 +270,16 @@ export default function Register() {
                 />
               </div>
             </div>
+              {/* Bank Details */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <h3 className="text-xl font-semibold col-span-full">Bank Details</h3>
+              {['bankName', 'accountName', 'accountNo', 'ifscCode', 'branch'].map((field) => (
+                <div className="form-control" key={field}>
+                  <label className="label" htmlFor={field}><span className="label-text">{field.replace(/([A-Z])/g, ' $1')}</span></label>
+                  <input type="text" id={field} name={field} value={form[field]} onChange={handleChange} className="input input-bordered w-full" />
+                </div>
+              ))}
+            </div>
 
             {/* Other Info */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
