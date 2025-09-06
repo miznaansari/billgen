@@ -270,6 +270,17 @@ export default function Register() {
                 />
               </div>
             </div>
+
+             {/* Address */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <h3 className="text-xl font-semibold col-span-full">Address</h3>
+              {['address', 'state', 'district', 'pincode'].map((field) => (
+                <div className="form-control" key={field}>
+                  <label className="label" htmlFor={field}><span className="label-text">{field.charAt(0).toUpperCase() + field.slice(1)}</span></label>
+                  <input type="text" id={field} name={field} value={form[field]} onChange={handleChange} className="input input-bordered w-full" />
+                </div>
+              ))}
+            </div>
               {/* Bank Details */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <h3 className="text-xl font-semibold col-span-full">Bank Details</h3>
