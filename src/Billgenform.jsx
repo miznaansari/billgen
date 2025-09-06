@@ -114,7 +114,7 @@ export default function BillGenForm() {
     doc.setFontSize(11);
     doc.setFont(undefined, "normal");
     const rawAddress = companyInfo?.address ||
-      "Flat No.411, Shree Sai Shraddha Chs. Ltd., Siddhart L.T. Road No.4 & 5, Goregaon West, Mumbai - 400 104";
+      "Enter Your Address";
 
     const addressLines = splitTextByLength(rawAddress, 100); // 60-char wrap
 
@@ -128,10 +128,10 @@ export default function BillGenForm() {
     doc.text(` ${companyInfo?.district || "district"}, ${companyInfo?.state || "state"}, ${companyInfo?.pincode || "pincode"}`, 105, 37, {
       align: "center",
     });
-    doc.text(`Email Id.: ${companyInfo?.companyEmail || "radheshyammau2@gmail.com"}`, 105, 45, {
+    doc.text(`Email Id.: ${companyInfo?.companyEmail || "Enter Your Email "}`, 105, 45, {
       align: "center",
     });
-    doc.text(`Contact No.: ${companyInfo?.contactNumber || "7985593140"}`, 105, 52, {
+    doc.text(`Contact No.: ${companyInfo?.contactNumber || "Enter Your Mobile no"}`, 105, 52, {
       align: "center",
     });
 
@@ -161,16 +161,16 @@ export default function BillGenForm() {
     let leftInfo = ``;
     if (formData.campaign) leftInfo += `\nCampaign Code : ${formData.campaign}`;
     leftInfo += `\nGPay/Phonepe: ${companyInfo?.gpayPhonepe || "+91 1231231231"}`;
-    leftInfo += `\nBank Name : ${companyInfo?.bankName || "Bank of ****"}`;
-    leftInfo += `\nAccount Name: ${companyInfo?.accountName || "Full Name"}`;
-    leftInfo += `\nAccount No. : ${companyInfo?.accountNo || "282******14308"}`;
-    leftInfo += `\nIFSC Code : ${companyInfo?.ifscCode || "BA***IBS"}`;
-    leftInfo += `\nBranch : ${companyInfo?.branch || "Pa***har Mau 27***1"}`;
+    leftInfo += `\nBank Name : ${companyInfo?.bankName || "Enter Your Bank of ****"}`;
+    leftInfo += `\nAccount Name: ${companyInfo?.accountName || " Enter YourFull Name"}`;
+    leftInfo += `\nAccount No. : ${companyInfo?.accountNo || " Enter Your282******14308"}`;
+    leftInfo += `\nIFSC Code : ${companyInfo?.ifscCode || " Enter YourBA***IBS"}`;
+    leftInfo += `\nBranch : ${companyInfo?.branch || " Enter YourPa***har Mau 27***1"}`;
     doc.text(leftInfo.split("\n"), 12, 100, { lineHeightFactor: 1.5 });
 
     const rightInfo = `Bill No.: ${formData.billno}
 Bill Date: ${formData.billdate}
-Post : ${companyInfo.post || ''}
+Post : ${companyInfo?.post || ''}
 Pan No.: ${companyInfo?.panNo || "DA***3*L"}
 GSTIN/UIN : ${formData.gst || ""}`;
     doc.text(rightInfo.split("\n"), 102, 102, { lineHeightFactor: 2 });
