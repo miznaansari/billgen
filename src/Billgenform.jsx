@@ -316,39 +316,61 @@ for (let i = 0; i < shootdate.length; i++) {
 
           {/* Billing Details */}
           <div className="border p-4 rounded-lg">
-            <h3 className="text-xl font-semibold mb-4 border-b pb-2">Billing Details</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {[
-                ["shootdate", "Shoot Date(s)"],
-                ["extrasheet", "Extra Shift"],
-                ["conveyance", "Conveyance"],
-                ["rateperday", "Rate Per Day"],
-                ["amount", "Amount"],
-              ].map(([name, label]) => (
-                <div className="form-control" key={name}>
-                  <label className="label">
-                    <span className="label-text font-medium">{label}</span>
-                  </label>
-                  {formData[name].map((val, idx) => (
-                    <input
-                      key={idx}
-                      type="text"
-                      className="input input-bordered w-full mb-2"
-                      value={val}
-                      onChange={(e) => handleArrayChange(e, name, idx)}
-                    />
-                  ))}
-                  <button
-                    type="button"
-                    onClick={() => handleAddField(name)}
-                    className="btn btn-outline btn-sm mt-2"
-                  >
-                    + Add {label}
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
+  <h3 className="text-xl font-semibold mb-4 border-b pb-2">Billing Details</h3>
+  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+    {[
+      ["shootdate", "Shoot Date(s)"],
+      ["extrasheet", "Extra Shift"],
+      ["conveyance", "Conveyance"],
+      ["rateperday", "Rate Per Day"],
+      ["amount", "Amount"],
+    ].map(([name, label]) => (
+      <div className="form-control" key={name}>
+        <label className="label">
+          <span className="label-text font-medium">{label}</span>
+        </label>
+        {formData[name].map((val, idx) => (
+          <input
+            key={idx}
+            type="text"
+            className="input input-bordered w-full mb-2"
+            value={val}
+            onChange={(e) => handleArrayChange(e, name, idx)}
+            onPaste={(e) => {
+              e.preventDefault();
+              const pastedData = e.clipboardData
+                .getData("text")
+                .split(/\r?\n/)
+                .map(d => d.trim())
+                .filter(d => d);
+
+              if (pastedData.length === 0) return;
+
+              const updated = [...formData[name]];
+              // Replace current input with first line
+              updated[idx] = pastedData[0];
+
+              // Insert the rest as new inputs
+              if (pastedData.length > 1) {
+                updated.splice(idx + 1, 0, ...pastedData.slice(1));
+              }
+
+              setFormData({ ...formData, [name]: updated });
+            }}
+          />
+        ))}
+        <button
+          type="button"
+          onClick={() => handleAddField(name)}
+          className="btn btn-outline btn-sm mt-2"
+        >
+          + Add {label}
+        </button>
+      </div>
+    ))}
+  </div>
+</div>
+
           <div className="border p-4 rounded-lg">
             <h3 className="text-xl font-semibold mb-4 border-b pb-2">
               Signature Options
