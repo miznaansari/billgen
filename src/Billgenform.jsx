@@ -198,7 +198,7 @@ GSTIN/UIN : ${formData.gst || ""}`;
       doc.text(conveyance[i] || "", 86 + 38 / 2, rowY + 7, { align: "center" });
       doc.text(rateperday[i] || "", 124 + 38 / 2, rowY + 7, { align: "center" });
       doc.text(amount[i] || "", 162 + 38 / 2, rowY + 7, { align: "center" });
-      rowY += 7;
+      rowY += 5;
     }
 
     doc.setFont(undefined, "bold");
