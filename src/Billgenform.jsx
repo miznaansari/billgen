@@ -2,6 +2,9 @@ import React, { useEffect, useState } from "react";
 import jsPDF from "jspdf";
 import { db } from "./firebase";
 import { doc, getDoc, updateDoc, collection, getDocs, query, where } from "firebase/firestore";
+import autoTable from "jspdf-autotable";
+
+
 
 // Utility: Convert number to words
 function numberToWords(num) {
@@ -183,6 +186,8 @@ GSTIN/UIN : ${formData.gst || ""}`;
     doc.rect(86, colStartY, 38, 10, "FD");
     doc.rect(124, colStartY, 38, 10, "FD");
     doc.rect(162, colStartY, 38, 10, "FD");
+    
+    
     doc.text("SHOOT DATE", 11, colStartY + 7);
     doc.text("EXTRA SHIFT", 49, colStartY + 7);
     doc.text("CONVEYANCE", 87, colStartY + 7);
@@ -191,15 +196,29 @@ GSTIN/UIN : ${formData.gst || ""}`;
 
     const { shootdate, extrasheet, conveyance, rateperday, amount } = formData;
     let rowY = 157;
-    for (let i = 0; i < shootdate.length; i++) {
-      doc.setFont(undefined, "normal");
-      doc.text(shootdate[i] || "", 10 + 38 / 2, rowY + 7, { align: "center" });
-      doc.text(extrasheet[i] || "", 48 + 38 / 2, rowY + 7, { align: "center" });
-      doc.text(conveyance[i] || "", 86 + 38 / 2, rowY + 7, { align: "center" });
-      doc.text(rateperday[i] || "", 124 + 38 / 2, rowY + 7, { align: "center" });
-      doc.text(amount[i] || "", 162 + 38 / 2, rowY + 7, { align: "center" });
-      rowY += 5;
-    }
+
+
+// if more than 10 rows → shrink font & row spacing
+if (shootdate.length > 10) {
+  doc.setFontSize(10);
+  var rowGap = 4;
+} else {
+  doc.setFontSize(12);
+  var rowGap = 5;
+}
+
+doc.setFont(undefined, "normal");
+
+for (let i = 0; i < shootdate.length; i++) {
+  doc.text(shootdate[i] || "", 10 + 38 / 2, rowY + rowGap, { align: "center" });
+  doc.text(extrasheet[i] || "", 48 + 38 / 2, rowY + rowGap, { align: "center" });
+  doc.text(conveyance[i] || "", 86 + 38 / 2, rowY + rowGap, { align: "center" });
+  doc.text(rateperday[i] || "", 124 + 38 / 2, rowY + rowGap, { align: "center" });
+  doc.text(amount[i] || "", 162 + 38 / 2, rowY + rowGap, { align: "center" });
+
+  rowY += rowGap;
+}
+
 
     doc.setFont(undefined, "bold");
     doc.rect(10, 245, 152, 10);
@@ -218,7 +237,7 @@ GSTIN/UIN : ${formData.gst || ""}`;
     } else if (signatureType === "image" && companyInfo?.digitalSignature) {
       // ✅ Show base64 image instead of text
       try {
-      doc.text(`Signature`, 12, 272);
+        doc.text(`Signature`, 12, 272);
 
         doc.addImage(companyInfo.digitalSignature, "PNG", 29, 265, 40, 10);
       } catch (err) {
@@ -330,7 +349,7 @@ GSTIN/UIN : ${formData.gst || ""}`;
               ))}
             </div>
           </div>
-  <div className="border p-4 rounded-lg">
+          <div className="border p-4 rounded-lg">
             <h3 className="text-xl font-semibold mb-4 border-b pb-2">
               Signature Options
             </h3>
