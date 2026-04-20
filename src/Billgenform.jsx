@@ -4,21 +4,16 @@ import { db } from "./firebase";
 import { doc, getDoc, updateDoc, collection, getDocs, query, where } from "firebase/firestore";
 import autoTable from "jspdf-autotable";
 
-
-
-// Utility: Convert number to words
+// Utility: Convert number to words (Indian numbering system)
 function numberToWords(num) {
-
-  const a = [
-    '', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine',
+  const a = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine',
     'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen',
-    'Seventeen', 'Eighteen', 'Nineteen'
-  ];
+    'Seventeen', 'Eighteen', 'Nineteen'];
   const b = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
 
   if ((num = num.toString()).length > 9) return 'Overflow';
   const n = ('000000000' + num).substr(-9).match(/(\d{2})(\d{2})(\d{2})(\d{1})(\d{2})/);
-  if (!n) return;
+  if (!n) return '';
 
   let str = '';
   str += (Number(n[1]) !== 0) ? (a[Number(n[1])] || b[n[1][0]] + ' ' + a[n[1][1]]) + ' Crore ' : '';
@@ -47,7 +42,7 @@ export default function BillGenForm() {
     rateperday: [""],
     amount: [""],
   });
-  const [signatureType, setSignatureType] = useState("text"); // 👈 NEW state
+  const [signatureType, setSignatureType] = useState("text");
   const [companyInfo, setCompanyInfo] = useState(null);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [pdfUrl, setPdfUrl] = useState("");
@@ -69,6 +64,28 @@ export default function BillGenForm() {
     const { name, value } = e.target;
     setFormData({ ...formData, [name]: value });
   };
+
+  const handleArrayChange = (e, field, index) => {
+    const updated = [...formData[field]];
+    updated[index] = e.target.value;
+    const newData = { ...formData, [field]: updated };
+
+    // Recalculate total amount & amount in words if amount changed
+    if (field === "amount") {
+      const total = updated.reduce((sum, val) => sum + (parseFloat(val.trim()) || 0), 0);
+      newData.totalamount = total.toFixed(2);
+      const totalInt = Math.floor(total);
+      const totalDecimal = Math.round((total - totalInt) * 100);
+      newData.amountinword = numberToWords(totalInt) + (totalDecimal ? ` and ${totalDecimal}/100` : '') + ' only';
+    }
+
+    setFormData(newData);
+  };
+
+  const handleAddField = (field) => {
+    setFormData({ ...formData, [field]: [...formData[field], ""] });
+  };
+
   function splitTextByLength(text, maxLength) {
     const words = text.split(' ');
     const lines = [];
@@ -87,25 +104,6 @@ export default function BillGenForm() {
     return lines;
   }
 
-  const handleArrayChange = (e, field, index) => {
-    const updated = [...formData[field]];
-    updated[index] = e.target.value;
-    const newData = { ...formData, [field]: updated };
-
-    // Recalculate amount total if amount array changed
-    if (field === "amount") {
-      const total = updated.reduce((sum, val) => sum + (parseFloat(val.trim()) || 0), 0);
-      newData.totalamount = total.toString();
-      newData.amountinword = numberToWords(total);
-    }
-
-    setFormData(newData);
-  };
-
-  const handleAddField = (field) => {
-    setFormData({ ...formData, [field]: [...formData[field], ""] });
-  };
-
   const generatePDF = () => {
     const doc = new jsPDF();
     doc.setFont("times");
@@ -113,30 +111,15 @@ export default function BillGenForm() {
     doc.setFont(undefined, "bold");
     doc.text((companyInfo?.companyName || "RADHE GUPTA").toUpperCase(), 105, 20, { align: "center" });
 
-
     doc.setFontSize(11);
     doc.setFont(undefined, "normal");
-    const rawAddress = companyInfo?.address ||
-      "Enter Your Address";
+    const rawAddress = companyInfo?.address || "Enter Your Address";
+    const addressLines = splitTextByLength(rawAddress, 100);
+    doc.text(addressLines, 105, 30, { align: "center", lineHeightFactor: 1.5 });
 
-    const addressLines = splitTextByLength(rawAddress, 100); // 60-char wrap
-
-    doc.text(addressLines, 105, 30, {
-      align: "center",
-      lineHeightFactor: 1.5,
-    });
-
-
-    doc.setFont(undefined, "normal");
-    doc.text(` ${companyInfo?.district || "district"}, ${companyInfo?.state || "state"}, ${companyInfo?.pincode || "pincode"}`, 105, 37, {
-      align: "center",
-    });
-    doc.text(`Email Id.: ${companyInfo?.companyEmail || "Enter Your Email "}`, 105, 45, {
-      align: "center",
-    });
-    doc.text(`Contact No.: ${companyInfo?.contactNumber || "Enter Your Mobile no"}`, 105, 52, {
-      align: "center",
-    });
+    doc.text(` ${companyInfo?.district || "district"}, ${companyInfo?.state || "state"}, ${companyInfo?.pincode || "pincode"}`, 105, 37, { align: "center" });
+    doc.text(`Email Id.: ${companyInfo?.companyEmail || "Enter Your Email "}`, 105, 45, { align: "center" });
+    doc.text(`Contact No.: ${companyInfo?.contactNumber || "Enter Your Mobile no"}`, 105, 52, { align: "center" });
 
     doc.setFontSize(20);
     doc.setFont(undefined, "bold");
@@ -150,33 +133,31 @@ export default function BillGenForm() {
     doc.setFontSize(11);
     doc.setFont(undefined, "bold");
     doc.text("Bill To:", 12, 82);
-    doc.setFont(undefined, "bold");
     const billto = splitTextByLength(formData.billto, 35);
     doc.text(billto, 30, 82);
 
-    doc.setFontSize(11);
-    doc.setFont(undefined, "bold");
     doc.text("Project Name:", 12, 97);
-    doc.setFont(undefined, "bold");
     const projectname = splitTextByLength(formData.projectname, 35);
     doc.text(projectname, 37, 97);
 
-    let leftInfo = ``;
-    if (formData.campaign) leftInfo += `\nCampaign Code : ${formData.campaign}`;
-    leftInfo += `\nGPay/Phonepe: ${companyInfo?.gpayPhonepe || "+91 1231231231"}`;
-    leftInfo += `\nBank Name : ${companyInfo?.bankName || "Enter Your Bank of ****"}`;
-    leftInfo += `\nAccount Name: ${companyInfo?.accountName || " Enter YourFull Name"}`;
-    leftInfo += `\nAccount No. : ${companyInfo?.accountNo || " Enter Your282******14308"}`;
-    leftInfo += `\nIFSC Code : ${companyInfo?.ifscCode || " Enter YourBA***IBS"}`;
-    leftInfo += `\nBranch : ${companyInfo?.branch || " Enter YourPa***har Mau 27***1"}`;
-    doc.text(leftInfo.split("\n"), 12, 100, { lineHeightFactor: 1.5 });
+    let leftInfo = `Company GST No : ${formData.gst || ""}`;
+    if (formData.pan) leftInfo += `\nCompany PAN No. : ${formData.pan}`;
 
-    const rightInfo = `Bill No.: ${formData.billno}
+    
+    doc.text(leftInfo.split("\n"), 12, 106, { lineHeightFactor: 1.5 });
+
+    let rightInfo = `Bill No.: ${formData.billno}
 Bill Date: ${formData.billdate}
 Post : ${companyInfo?.post || ''}
-Pan No.: ${companyInfo?.panNo || "DA***3*L"}
-GSTIN/UIN : ${formData.gst || ""}`;
-    doc.text(rightInfo.split("\n"), 102, 102, { lineHeightFactor: 2 });
+Pan No.: ${companyInfo?.panNo || "DA***3*L"} `;
+    if (formData.campaign) leftInfo += `\nCampaign Code : ${formData.campaign}`;
+    rightInfo += `\nGPay/Phonepe: ${companyInfo?.gpayPhonepe || "+91 1231231231"}`;
+    rightInfo += `\nBank Name : ${companyInfo?.bankName || "Enter Your Bank of ****"}`;
+    rightInfo += `\nAccount Name: ${companyInfo?.accountName || " Enter YourFull Name"}`;
+    rightInfo += `\nAccount No. : ${companyInfo?.accountNo || " Enter Your282******14308"}`;
+    rightInfo += `\nIFSC Code : ${companyInfo?.ifscCode || " Enter YourBA***IBS"}`;
+    rightInfo += `\nBranch : ${companyInfo?.branch || " Enter YourPa***har Mau 27***1"}`;
+    doc.text(rightInfo.split("\n"), 102, 82, { lineHeightFactor: 1.5 });
 
     const colStartY = 147;
     doc.setFont(undefined, "bold");
@@ -186,8 +167,7 @@ GSTIN/UIN : ${formData.gst || ""}`;
     doc.rect(86, colStartY, 38, 10, "FD");
     doc.rect(124, colStartY, 38, 10, "FD");
     doc.rect(162, colStartY, 38, 10, "FD");
-    
-    
+
     doc.text("SHOOT DATE", 11, colStartY + 7);
     doc.text("EXTRA SHIFT", 49, colStartY + 7);
     doc.text("CONVEYANCE", 87, colStartY + 7);
@@ -195,30 +175,22 @@ GSTIN/UIN : ${formData.gst || ""}`;
     doc.text("AMOUNT", 163, colStartY + 7);
 
     const { shootdate, extrasheet, conveyance, rateperday, amount } = formData;
+    const maxRows = Math.max(shootdate.length, extrasheet.length, conveyance.length, rateperday.length, amount.length);
+
+    // Font size adjustment for many rows
+    let rowGap = maxRows > 10 ? 4 : 5;
+    doc.setFontSize(maxRows > 10 ? 10 : 12);
+    doc.setFont(undefined, "normal");
+
     let rowY = 157;
-
-
-// if more than 10 rows → shrink font & row spacing
-if (shootdate.length > 10) {
-  doc.setFontSize(10);
-  var rowGap = 4;
-} else {
-  doc.setFontSize(12);
-  var rowGap = 5;
-}
-
-doc.setFont(undefined, "normal");
-
-for (let i = 0; i < shootdate.length; i++) {
-  doc.text(shootdate[i] || "", 10 + 38 / 2, rowY + rowGap, { align: "center" });
-  doc.text(extrasheet[i] || "", 48 + 38 / 2, rowY + rowGap, { align: "center" });
-  doc.text(conveyance[i] || "", 86 + 38 / 2, rowY + rowGap, { align: "center" });
-  doc.text(rateperday[i] || "", 124 + 38 / 2, rowY + rowGap, { align: "center" });
-  doc.text(amount[i] || "", 162 + 38 / 2, rowY + rowGap, { align: "center" });
-
-  rowY += rowGap;
-}
-
+    for (let i = 0; i < maxRows; i++) {
+      doc.text(shootdate[i] || "", 10 + 38 / 2, rowY + rowGap, { align: "center" });
+      doc.text(extrasheet[i] || "", 48 + 38 / 2, rowY + rowGap, { align: "center" });
+      doc.text(conveyance[i] || "", 86 + 38 / 2, rowY + rowGap, { align: "center" });
+      doc.text(rateperday[i] || "", 124 + 38 / 2, rowY + rowGap, { align: "center" });
+      doc.text(amount[i] || "", 162 + 38 / 2, rowY + rowGap, { align: "center" });
+      rowY += rowGap;
+    }
 
     doc.setFont(undefined, "bold");
     doc.rect(10, 245, 152, 10);
@@ -231,14 +203,12 @@ for (let i = 0; i < shootdate.length; i++) {
 
     doc.setFont(undefined, "bold");
     doc.rect(10, 265, 190, 10);
+
     if (signatureType === "text") {
-      // ✅ Show signature name (old way)
       doc.text(`Signature: ${companyInfo?.signatureName || "No Sign Added"}`, 12, 272);
     } else if (signatureType === "image" && companyInfo?.digitalSignature) {
-      // ✅ Show base64 image instead of text
       try {
         doc.text(`Signature`, 12, 272);
-
         doc.addImage(companyInfo.digitalSignature, "PNG", 29, 265, 40, 10);
       } catch (err) {
         console.error("❌ Failed to add signature image:", err);
@@ -282,7 +252,6 @@ for (let i = 0; i < shootdate.length; i++) {
         <h2 className="text-2xl font-bold mb-6 text-center">Bill Generator</h2>
 
         <form onSubmit={handleGeneratePDF} className="space-y-8">
-
           {/* Invoice Details */}
           <div className="border p-4 rounded-lg">
             <h3 className="text-xl font-semibold mb-4 border-b pb-2">Invoice Details</h3>
@@ -294,8 +263,7 @@ for (let i = 0; i < shootdate.length; i++) {
                 ["billno", "Bill No"],
                 ["billdate", "Bill Date"],
                 ["gst", "GST"],
-                // ["amountinword", "Amount in Words"],
-                // ["totalamount", "Total Amount"],
+                ["pan", "PAN"]
               ].map(([name, label]) => (
                 <div className="form-control" key={name}>
                   <label className="label" htmlFor={name}>
@@ -316,65 +284,43 @@ for (let i = 0; i < shootdate.length; i++) {
 
           {/* Billing Details */}
           <div className="border p-4 rounded-lg">
-  <h3 className="text-xl font-semibold mb-4 border-b pb-2">Billing Details</h3>
-  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-    {[
-      ["shootdate", "Shoot Date(s)"],
-      ["extrasheet", "Extra Shift"],
-      ["conveyance", "Conveyance"],
-      ["rateperday", "Rate Per Day"],
-      ["amount", "Amount"],
-    ].map(([name, label]) => (
-      <div className="form-control" key={name}>
-        <label className="label">
-          <span className="label-text font-medium">{label}</span>
-        </label>
-        {formData[name].map((val, idx) => (
-          <input
-            key={idx}
-            type="text"
-            className="input input-bordered w-full mb-2"
-            value={val}
-            onChange={(e) => handleArrayChange(e, name, idx)}
-            onPaste={(e) => {
-              e.preventDefault();
-              const pastedData = e.clipboardData
-                .getData("text")
-                .split(/\r?\n/)
-                .map(d => d.trim())
-                .filter(d => d);
+            <h3 className="text-xl font-semibold mb-4 border-b pb-2">Billing Details</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {[
+                ["shootdate", "Shoot Date(s)"],
+                ["extrasheet", "Extra Shift"],
+                ["conveyance", "Conveyance"],
+                ["rateperday", "Rate Per Day"],
+                ["amount", "Amount"],
+              ].map(([name, label]) => (
+                <div className="form-control" key={name}>
+                  <label className="label">
+                    <span className="label-text font-medium">{label}</span>
+                  </label>
+                  {formData[name].map((val, idx) => (
+                    <input
+                      key={idx}
+                      type="text"
+                      className="input input-bordered w-full mb-2"
+                      value={val}
+                      onChange={(e) => handleArrayChange(e, name, idx)}
+                    />
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => handleAddField(name)}
+                    className="btn btn-outline btn-sm mt-2"
+                  >
+                    + Add {label}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
 
-              if (pastedData.length === 0) return;
-
-              const updated = [...formData[name]];
-              // Replace current input with first line
-              updated[idx] = pastedData[0];
-
-              // Insert the rest as new inputs
-              if (pastedData.length > 1) {
-                updated.splice(idx + 1, 0, ...pastedData.slice(1));
-              }
-
-              setFormData({ ...formData, [name]: updated });
-            }}
-          />
-        ))}
-        <button
-          type="button"
-          onClick={() => handleAddField(name)}
-          className="btn btn-outline btn-sm mt-2"
-        >
-          + Add {label}
-        </button>
-      </div>
-    ))}
-  </div>
-</div>
-
+          {/* Signature */}
           <div className="border p-4 rounded-lg">
-            <h3 className="text-xl font-semibold mb-4 border-b pb-2">
-              Signature Options
-            </h3>
+            <h3 className="text-xl font-semibold mb-4 border-b pb-2">Signature Options</h3>
             <div className="flex gap-6">
               <label className="flex items-center gap-2">
                 <input
@@ -400,7 +346,8 @@ for (let i = 0; i < shootdate.length; i++) {
               </label>
             </div>
           </div>
-          {/* Submit Button */}
+
+          {/* Submit */}
           <div>
             <button type="submit" className="btn btn-primary w-full text-lg">
               Generate Invoice PDF
@@ -409,7 +356,7 @@ for (let i = 0; i < shootdate.length; i++) {
         </form>
       </div>
 
-      {/* Floating Preview Button */}
+      {/* Preview Button */}
       <button
         type="button"
         onClick={handlePreviewPDF}
@@ -429,15 +376,10 @@ for (let i = 0; i < shootdate.length; i++) {
             >
               Close
             </button>
-            <iframe
-              src={pdfUrl}
-              title="PDF Preview"
-              className="w-full h-full border rounded"
-            />
+            <iframe src={pdfUrl} title="PDF Preview" className="w-full h-full" />
           </div>
         </div>
       )}
     </div>
-
   );
 }

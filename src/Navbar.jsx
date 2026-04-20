@@ -1,76 +1,106 @@
 import React from "react";
-import { Link, useNavigate } from "react-router";
+import { Link, useNavigate, useLocation } from "react-router";
 
 export default function Navbar() {
     const navigate = useNavigate();
+    const location = useLocation();
     const uid = localStorage.getItem("uid");
 
     const handleLogout = () => {
-        localStorage.clear(); // or removeItem("uid");
-        navigate("/"); // or navigate("/");
+        localStorage.clear();
+        navigate("/");
     };
 
+    const navLinkClass = (path) =>
+        `px-3 py-2 rounded-lg transition ${
+            location.pathname === path
+                ? "bg-primary text-white"
+                : "hover:bg-base-200"
+        }`;
+
     return (
-        <div className="navbar bg-base-100 shadow-md sticky top-0 left-0 right-0 z-50">
+        <div className="navbar bg-base-100 shadow-md sticky top-0 z-50 px-4 md:px-8">
+            
+            {/* Logo */}
             <div className="flex-1">
-                <Link to="/" className="btn btn-ghost text-xl">
+                <Link to="/" className="text-xl font-bold text-primary">
                     Bill Generator
                 </Link>
             </div>
 
-            <div className="hidden md:flex">
-                <ul className="menu menu-horizontal px-1">
-                   {!uid && (   <li>
-                        <Link to="/">Signup</Link>
-                    </li>)}
-                    <li>
-                        <Link to="/register">Register / Update Profile</Link>
-                    </li>
-                    <li>
-                        <Link to="/bill">Create Bill</Link>
-                    </li>
-                    {uid && (
-                        <li>
-                            <button onClick={handleLogout} className="btn btn-error btn-sm text-white ml-2">
-                                Logout
-                            </button>
-                        </li>
-                    )}
-                </ul>
+            {/* Desktop Menu */}
+            <div className="hidden md:flex items-center gap-2">
+                {!uid && (
+                    <Link to="/signup" className={navLinkClass("/signup")}>
+                        Signup
+                    </Link>
+                )}
+
+                {uid && (
+                    <>
+                        <Link to="/register" className={navLinkClass("/register")}>
+                            Profile
+                        </Link>
+
+                        <Link to="/bill" className={navLinkClass("/bill")}>
+                            Create Bill
+                        </Link>
+
+                        <button
+                            onClick={handleLogout}
+                            className="ml-3 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition"
+                        >
+                            Logout
+                        </button>
+                    </>
+                )}
             </div>
 
-            {/* Mobile Dropdown */}
+            {/* Mobile Menu */}
             <div className="dropdown dropdown-end md:hidden">
-                <button tabIndex={0} className="btn btn-ghost btn-circle">
+                <label tabIndex={0} className="btn btn-ghost btn-circle">
                     <svg
-                        className="h-5 w-5"
+                        className="h-6 w-6"
                         fill="none"
                         stroke="currentColor"
                         strokeWidth="2"
                         viewBox="0 0 24 24"
                     >
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+                        <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M4 6h16M4 12h16M4 18h16"
+                        />
                     </svg>
-                </button>
+                </label>
+
                 <ul
                     tabIndex={0}
-                    className="menu menu-sm dropdown-content mt-3 z-[1] p-2 shadow bg-base-100 rounded-box w-52"
+                    className="menu menu-sm dropdown-content mt-3 p-3 shadow bg-base-100 rounded-box w-56 space-y-1"
                 >
-                    <li>
-                        <Link to="/signup">Signup</Link>
-                    </li>
-                    <li>
-                        <Link to="/register">Register / Update Profile</Link>
-                    </li>
-                    <li>
-                        <Link to="/bill">Create Bill</Link>
-                    </li>
-                    {uid && (
+                    {!uid && (
                         <li>
-                            <button onClick={handleLogout} className="btn btn-error btn-sm text-white">
-                                Logout
-                            </button>
+                            <Link to="/signup">Signup</Link>
                         </li>
+                    )}
+
+                    {uid && (
+                        <>
+                            <li>
+                                <Link to="/register">Profile</Link>
+                            </li>
+                            <li>
+                                <Link to="/bill">Create Bill</Link>
+                            </li>
+                            <li>
+                                <button
+                                    onClick={handleLogout}
+                                    className="text-red-500 font-semibold"
+                                >
+                                    Logout
+                                </button>
+                            </li>
+                        </>
                     )}
                 </ul>
             </div>
