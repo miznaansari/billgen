@@ -133,17 +133,21 @@ export default function BillGenForm() {
     doc.setFontSize(11);
     doc.setFont(undefined, "bold");
     doc.text("Bill To:", 12, 82);
-    const billto = splitTextByLength(formData.billto, 35);
+    const billto = splitTextByLength(formData.billto, 28);
     doc.text(billto, 30, 82);
 
-    doc.text("Project Name:", 12, 97);
-    const projectname = splitTextByLength(formData.projectname, 35);
-    doc.text(projectname, 37, 97);
 
-    let leftInfo = `Company GST No : ${formData.gst || ""}`;
+
+    doc.text("Project Name:", 12, 100);
+    const projectname = splitTextByLength(formData.projectname, 30);
+    doc.text(projectname, 37, 100);
+
+    let leftInfo = ``;
+    if (formData.address) leftInfo += `\nCompany Address. : ${splitTextByLength(formData.address, 28).join("\n")}`;
+
+    if (formData.pan) leftInfo += `\nCompany GST No. : ${formData.gst}`;
     if (formData.pan) leftInfo += `\nCompany PAN No. : ${formData.pan}`;
 
-    
     doc.text(leftInfo.split("\n"), 12, 106, { lineHeightFactor: 1.5 });
 
     let rightInfo = `Bill No.: ${formData.billno}
@@ -259,11 +263,12 @@ Pan No.: ${companyInfo?.panNo || "DA***3*L"} `;
               {[
                 ["billto", "Bill To"],
                 ["projectname", "Project Name"],
+                ["address", "Company Address"],
                 ["campaign", "Campaign Code (optional)"],
                 ["billno", "Bill No"],
                 ["billdate", "Bill Date"],
-                ["gst", "GST"],
-                ["pan", "PAN"]
+                ["gst", "Company GST"],
+                ["pan", " Company PAN"]
               ].map(([name, label]) => (
                 <div className="form-control" key={name}>
                   <label className="label" htmlFor={name}>
