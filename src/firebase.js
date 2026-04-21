@@ -1,7 +1,7 @@
 // src/firebase.js
 import { initializeApp } from "firebase/app";
 import { getAnalytics } from "firebase/analytics";
-import { getAuth, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
+import { getAuth, GoogleAuthProvider, signInWithPopup, setPersistence, browserLocalPersistence } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";  // ⬅️ Add this
 
@@ -17,7 +17,14 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const analytics = getAnalytics(app);
+
 const auth = getAuth(app);
+// Set persistence to localStorage for better compatibility
+setPersistence(auth, browserLocalPersistence).catch((err) => {
+  // Handle browsers/environments where storage is inaccessible
+  console.warn('Auth persistence could not be set:', err);
+});
+
 const provider = new GoogleAuthProvider();
 const db = getFirestore(app);
 const storage = getStorage(app);  // ⬅️ Export storage
