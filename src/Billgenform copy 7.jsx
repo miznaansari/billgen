@@ -284,7 +284,7 @@ export default function BillGenForm() {
     doc.setTextColor(0, 0, 0);
     doc.setFontSize(9);
     doc.setFont(undefined, "bold");
-    doc.text("BILL TO", 18, boxStartY + 1.5);
+    doc.text("BILL TO", 18, boxStartY + 2);
 
     doc.setFontSize(8);
     doc.setFont(undefined, "normal");
@@ -314,7 +314,7 @@ export default function BillGenForm() {
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(9);
     doc.setFont(undefined, "bold");
-    doc.text("PROJECT DETAILS", 116, boxStartY + 1.5);
+    doc.text("PROJECT DETAILS", 116, boxStartY + 2);
 
     doc.setTextColor(0, 0, 0);
     doc.setFontSize(8);
@@ -479,30 +479,16 @@ const resizeBase64Image = (base64, maxWidth = 300) => {
     doc.triangle(115, finalY - 2, 165, finalY + 4, 170, finalY - 2, "FD");
     doc.setTextColor(255, 255, 255);
     doc.setFont(undefined, "bold");
-    doc.text("AUTHORISED SIGNATURE", 120, finalY + 2);
-
-    if (signatureType === "text") {
-      doc.setTextColor(0, 0, 0);
-      doc.setFont(undefined, "normal");
-      doc.setFontSize(10);
-      doc.text(companyInfo?.signatureName || "No Sign Added", 160, finalY + 14, { align: "center" });
-    } else if (signatureType === "image" && companyInfo?.digitalSignature) {
-      try {
+      // doc.addImage(companyInfo?.digitalSignature, "PNG", 29, 265, 40, 10);
         doc.addImage(
-          companyInfo.digitalSignature,
-          "PNG",
-          140,           // X (inside strip)
-          finalY + 10.5,  // Y (aligned with strip)
-          40,            // width
-          6              // height (IMPORTANT: small to fit)
-        );
-      } catch (err) {
-        console.error("❌ Failed to add signature image:", err);
-        doc.setTextColor(0, 0, 0);
-        doc.setFontSize(8);
-        doc.text("[Invalid Image]", 160, finalY + 14, { align: "center" });
-      }
-    }
+      companyInfo.digitalSignature,
+      "PNG",
+      140,           // X (inside strip)
+      finalY + 10.5,  // Y (aligned with strip)
+      40,            // width
+      6              // height (IMPORTANT: small to fit)
+    );
+    doc.text("AUTHORISED SIGNATURE", 120, finalY + 2);
 
     doc.setDrawColor(0, 0, 0);
     doc.line(125, finalY + 19, 195, finalY + 19);
