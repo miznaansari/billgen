@@ -144,27 +144,35 @@ export default function BillGenForm() {
     
     // --- TOP HEADER ---
     doc.setFillColor(15, 15, 15);
-    doc.triangle(0, 0, 0, 65, 120, 65, "F");
-    doc.triangle(0, 0, 120, 65, 140, 0, "F");
+    doc.setDrawColor(15, 15, 15);
+    doc.setLineWidth(0.5);
+    doc.triangle(0, 0, 0, 65, 120, 65, "FD");
+    doc.triangle(0, 0, 120, 65, 140, 0, "FD");
+
     doc.setFillColor(...goldColor);
-    doc.triangle(140, 0, 120, 65, 123, 65, "F");
-    doc.triangle(140, 0, 143, 0, 123, 65, "F");
+    doc.setDrawColor(...goldColor);
+    doc.triangle(140, 0, 120, 65, 123, 65, "FD");
+    doc.triangle(140, 0, 143, 0, 123, 65, "FD");
 
     if (lenseBase64) {
       doc.addImage(lenseBase64, "PNG", -10, -5, 60, 60);
     }
 
+    let textStartX = 50;
     if (logoBase64) {
-      doc.addImage(logoBase64, "PNG", 50, 10, 60, 15);
-    } else {
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(16);
-      doc.setFont(undefined, "bold");
-      doc.text((companyInfo?.companyName || "RADHESHYAM GUPTA").toUpperCase(), 50, 18);
-      doc.setTextColor(...goldColor);
-      doc.setFontSize(10);
-      doc.text("CAMERA DEPARTMENT", 50, 24);
+      // Draw the logo icon on the left
+      doc.addImage(logoBase64, "PNG", 50, 7, 18, 18);
+      textStartX = 72; // Shift text to the right of the logo
     }
+
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(16);
+    doc.setFont(undefined, "bold");
+    doc.text((companyInfo?.companyName || "RADHESHYAM GUPTA").toUpperCase(), textStartX, 15);
+    
+    doc.setTextColor(...goldColor);
+    doc.setFontSize(10);
+    doc.text("CAMERA DEPARTMENT", textStartX, 22);
 
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(8);
@@ -206,10 +214,15 @@ export default function BillGenForm() {
     doc.setLineWidth(0.4);
 
     // BILL TO
+    doc.setDrawColor(...goldColor);
+    doc.setLineWidth(0.4);
     doc.roundedRect(10, 70, 92, 60, 3, 3, "S");
+    
     doc.setFillColor(...goldColor);
-    doc.triangle(10, 66, 10, 74, 45, 74, "F");
-    doc.triangle(10, 66, 45, 74, 50, 66, "F");
+    doc.setDrawColor(...goldColor);
+    doc.setLineWidth(0.5);
+    doc.triangle(10, 66, 10, 74, 45, 74, "FD");
+    doc.triangle(10, 66, 45, 74, 50, 66, "FD");
     doc.setTextColor(0, 0, 0);
     doc.setFontSize(9);
     doc.setFont(undefined, "bold");
@@ -231,10 +244,14 @@ export default function BillGenForm() {
 
     // PROJECT DETAILS
     doc.setDrawColor(...goldColor);
+    doc.setLineWidth(0.4);
     doc.roundedRect(108, 70, 92, 60, 3, 3, "S");
+    
     doc.setFillColor(15, 15, 15);
-    doc.triangle(108, 66, 108, 74, 155, 74, "F");
-    doc.triangle(108, 66, 155, 74, 160, 66, "F");
+    doc.setDrawColor(15, 15, 15);
+    doc.setLineWidth(0.5);
+    doc.triangle(108, 66, 108, 74, 155, 74, "FD");
+    doc.triangle(108, 66, 155, 74, 160, 66, "FD");
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(9);
     doc.setFont(undefined, "bold");
@@ -257,7 +274,7 @@ export default function BillGenForm() {
 
     // --- TABLE ---
     const tableBody = [];
-    const maxRowsData = Math.max(formData.shootdate.length, formData.extrasheet.length, formData.conveyance.length, formData.rateperday.length, formData.amount.length);
+    const maxRowsData = Math.max(10, formData.shootdate.length, formData.extrasheet.length, formData.conveyance.length, formData.rateperday.length, formData.amount.length);
     for(let i=0; i < maxRowsData; i++) {
       tableBody.push([
         formData.shootdate[i] || '',
@@ -351,10 +368,15 @@ export default function BillGenForm() {
 
     // Bank Details & Signature
     doc.setDrawColor(...goldColor);
+    doc.setLineWidth(0.4);
     doc.roundedRect(10, finalY, 95, 25, 2, 2, "S");
+
     doc.setFillColor(15, 15, 15);
-    doc.triangle(10, finalY - 2, 10, finalY + 4, 40, finalY + 4, "F");
-    doc.triangle(10, finalY - 2, 40, finalY + 4, 45, finalY - 2, "F");
+    doc.setDrawColor(15, 15, 15);
+    doc.setLineWidth(0.5);
+    doc.triangle(10, finalY - 2, 10, finalY + 4, 40, finalY + 4, "FD");
+    doc.triangle(10, finalY - 2, 40, finalY + 4, 45, finalY - 2, "FD");
+
     doc.setTextColor(255, 255, 255);
     doc.setFont(undefined, "bold");
     doc.text("BANK DETAILS", 14, finalY + 2);
@@ -362,16 +384,21 @@ export default function BillGenForm() {
     doc.setTextColor(0, 0, 0);
     doc.setFontSize(8);
     doc.setFont(undefined, "normal");
-    doc.text("Account Name  : " + (companyInfo?.accountName || "RADHESHYAM GUPTA"), 12, finalY + 9);
-    doc.text("Account No.     : " + (companyInfo?.accountNo || "XXXXXXXXXXXX"), 12, finalY + 13);
-    doc.text("Bank Name       : " + (companyInfo?.bankName || ""), 12, finalY + 17);
-    doc.text("Branch             : " + (companyInfo?.branch || ""), 12, finalY + 21);
-    doc.text("IFSC Code        : " + (companyInfo?.ifscCode || ""), 12, finalY + 25);
+    doc.text("Account Name  : " + (companyInfo?.accountName || "RADHESHYAM GUPTA"), 12, finalY + 8);
+    doc.text("Account No.     : " + (companyInfo?.accountNo || "XXXXXXXXXXXX"), 12, finalY + 12);
+    doc.text("Bank Name       : " + (companyInfo?.bankName || ""), 12, finalY + 16);
+    doc.text("Branch             : " + (companyInfo?.branch || ""), 12, finalY + 20);
+    doc.text("IFSC Code        : " + (companyInfo?.ifscCode || ""), 12, finalY + 24);
 
+    doc.setDrawColor(...goldColor);
+    doc.setLineWidth(0.4);
     doc.roundedRect(115, finalY, 85, 25, 2, 2, "S");
+    
     doc.setFillColor(15, 15, 15);
-    doc.triangle(115, finalY - 2, 115, finalY + 4, 165, finalY + 4, "F");
-    doc.triangle(115, finalY - 2, 165, finalY + 4, 170, finalY - 2, "F");
+    doc.setDrawColor(15, 15, 15);
+    doc.setLineWidth(0.5);
+    doc.triangle(115, finalY - 2, 115, finalY + 4, 165, finalY + 4, "FD");
+    doc.triangle(115, finalY - 2, 165, finalY + 4, 170, finalY - 2, "FD");
     doc.setTextColor(255, 255, 255);
     doc.setFont(undefined, "bold");
     doc.text("AUTHORISED SIGNATURE", 120, finalY + 2);

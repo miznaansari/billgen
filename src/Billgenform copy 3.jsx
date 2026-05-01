@@ -1,330 +1,721 @@
 import React, { useEffect, useState } from "react";
 import jsPDF from "jspdf";
 import { db } from "./firebase";
-import { doc, getDoc, updateDoc } from "firebase/firestore"; 
-import { collection, getDocs, query, where } from "firebase/firestore";
+import { doc, getDoc, updateDoc, collection, getDocs, query, where } from "firebase/firestore";
+import autoTable from "jspdf-autotable";
+
+// Utility: Convert number to words (Indian numbering system)
 function numberToWords(num) {
-    const a = [
-        '', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine',
-        'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen',
-        'Seventeen', 'Eighteen', 'Nineteen'
-    ];
-    const b = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+  const a = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine',
+    'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen',
+    'Seventeen', 'Eighteen', 'Nineteen'];
+  const b = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
 
-    if ((num = num.toString()).length > 9) return 'Overflow';
-    const n = ('000000000' + num).substr(-9).match(/(\d{2})(\d{2})(\d{2})(\d{1})(\d{2})/);
-    if (!n) return;
+  if ((num = num.toString()).length > 9) return 'Overflow';
+  const n = ('000000000' + num).substr(-9).match(/(\d{2})(\d{2})(\d{2})(\d{1})(\d{2})/);
+  if (!n) return '';
 
-    let str = '';
-    str += (Number(n[1]) !== 0) ? (a[Number(n[1])] || b[n[1][0]] + ' ' + a[n[1][1]]) + ' Crore ' : '';
-    str += (Number(n[2]) !== 0) ? (a[Number(n[2])] || b[n[2][0]] + ' ' + a[n[2][1]]) + ' Lakh ' : '';
-    str += (Number(n[3]) !== 0) ? (a[Number(n[3])] || b[n[3][0]] + ' ' + a[n[3][1]]) + ' Thousand ' : '';
-    str += (Number(n[4]) !== 0) ? (a[Number(n[4])] || b[n[4][0]] + ' ' + a[n[4][1]]) + ' Hundred ' : '';
-    str += (Number(n[5]) !== 0) ?
-        ((str !== '') ? 'and ' : '') + (a[Number(n[5])] || b[n[5][0]] + ' ' + a[n[5][1]]) + ' ' : '';
+  let str = '';
+  str += (Number(n[1]) !== 0) ? (a[Number(n[1])] || b[n[1][0]] + ' ' + a[n[1][1]]) + ' Crore ' : '';
+  str += (Number(n[2]) !== 0) ? (a[Number(n[2])] || b[n[2][0]] + ' ' + a[n[2][1]]) + ' Lakh ' : '';
+  str += (Number(n[3]) !== 0) ? (a[Number(n[3])] || b[n[3][0]] + ' ' + a[n[3][1]]) + ' Thousand ' : '';
+  str += (Number(n[4]) !== 0) ? (a[Number(n[4])] || b[n[4][0]] + ' ' + a[n[4][1]]) + ' Hundred ' : '';
+  str += (Number(n[5]) !== 0) ?
+    ((str !== '') ? 'and ' : '') + (a[Number(n[5])] || b[n[5][0]] + ' ' + a[n[5][1]]) + ' ' : '';
 
-    return str.trim() + ' only';
+  return str.trim() + ' only';
 }
+
+function getBase64ImageFromUrl(imageUrl) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.setAttribute("crossOrigin", "anonymous");
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, 0, 0);
+      resolve(canvas.toDataURL("image/png"));
+    };
+    img.onerror = reject;
+    img.src = imageUrl;
+  });
+}
+
 export default function BillGenForm() {
-    const [formData, setFormData] = useState({
-        billto: "",
-        projectname: "",
-        campaign: "",
-        billno: "",
-        billdate: "",
-        shootdate: "",
-        extrasheet: "",
-        conveyance: "",
-        rateperday: "",
-        amount: "",
-        gst: "",
-        amountinword: "",
-        totalamount: "",
-    });
+  const [formData, setFormData] = useState({
+    billto: "",
+    projectname: "",
+    campaign: "",
+    billno: "",
+    billdate: "",
+    gst: "",
+    amountinword: "",
+    totalamount: "",
+    shootdate: [""],
+    extrasheet: [""],
+    conveyance: [""],
+    rateperday: [""],
+    amount: [""],
+  });
+  const [signatureType, setSignatureType] = useState("text");
+  const [pdfDesign, setPdfDesign] = useState("current");
+  const [companyInfo, setCompanyInfo] = useState(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [pdfUrl, setPdfUrl] = useState("");
+  const [lenseBase64, setLenseBase64] = useState(null);
+  const [logoBase64, setLogoBase64] = useState(null);
 
-    const [companyInfo, setCompanyInfo] = useState(null);
-    const [previewOpen, setPreviewOpen] = useState(false);
-    const [pdfUrl, setPdfUrl] = useState("");
+  useEffect(() => {
+    const loadImages = async () => {
+      try {
+        const lenseUrl = new URL('./assets/lense.png', import.meta.url).href;
+        const logoUrl = new URL('./assets/logotheme.png', import.meta.url).href;
+        const l64 = await getBase64ImageFromUrl(lenseUrl);
+        const logo64 = await getBase64ImageFromUrl(logoUrl);
+        setLenseBase64(l64);
+        setLogoBase64(logo64);
+      } catch (e) {
+        console.error("Failed to load images", e);
+      }
+    };
+    loadImages();
 
-    useEffect(() => {
-        const fetchCompanyInfo = async () => {
-            try {
-                const uid = localStorage.getItem("uid");
-                if (!uid) return;
-
-                const q = query(collection(db, "companyProfiles"), where("userId", "==", uid));
-                const querySnapshot = await getDocs(q);
-
-                if (!querySnapshot.empty) {
-                    setCompanyInfo(querySnapshot.docs[0].data());
-                }
-            } catch (err) {
-                console.error("Error fetching company info:", err);
-            }
-        };
-
-        fetchCompanyInfo();
-    }, []);
+    const fetchCompanyInfo = async () => {
+      const uid = localStorage.getItem("uid");
+      if (!uid) return;
+      const q = query(collection(db, "companyProfiles"), where("userId", "==", uid));
+      const querySnapshot = await getDocs(q);
+      if (!querySnapshot.empty) {
+        setCompanyInfo(querySnapshot.docs[0].data());
+      }
+    };
+    fetchCompanyInfo();
+  }, []);
 
   const handleChange = (e) => {
-        const { name, value } = e.target;
-        let updatedFormData = { ...formData, [name]: value };
+    const { name, value } = e.target;
+    setFormData({ ...formData, [name]: value });
+  };
 
-        // Automatically update amountinword and totalamount when amount changes
-        if (name === "amount") {
-            const total = value
-                .split("\n")
-                .reduce((sum, val) => sum + (parseFloat(val.trim()) || 0), 0);
-            updatedFormData.totalamount = total.toString();
-            updatedFormData.amountinword = numberToWords(total);
+  const handleArrayChange = (e, field, index) => {
+    const updated = [...formData[field]];
+    updated[index] = e.target.value;
+    const newData = { ...formData, [field]: updated };
+
+    // Recalculate total amount & amount in words if amount changed
+    if (field === "amount") {
+      const total = updated.reduce((sum, val) => sum + (parseFloat(val.trim()) || 0), 0);
+      newData.totalamount = total.toFixed(2);
+      const totalInt = Math.floor(total);
+      const totalDecimal = Math.round((total - totalInt) * 100);
+      newData.amountinword = numberToWords(totalInt) + (totalDecimal ? ` and ${totalDecimal}/100` : '') + ' only';
+    }
+
+    setFormData(newData);
+  };
+
+  const handleAddField = (field) => {
+    setFormData({ ...formData, [field]: [...formData[field], ""] });
+  };
+
+  function splitTextByLength(text, maxLength) {
+    const words = text.split(' ');
+    const lines = [];
+    let currentLine = "";
+
+    for (let word of words) {
+      if ((currentLine + word).length <= maxLength) {
+        currentLine += word + " ";
+      } else {
+        lines.push(currentLine.trim());
+        currentLine = word + " ";
+      }
+    }
+
+    if (currentLine.trim()) lines.push(currentLine.trim());
+    return lines;
+  }
+
+  const generateNewPDF = () => {
+    const doc = new jsPDF();
+    const goldColor = [218, 165, 32];
+    
+    // --- TOP HEADER ---
+    doc.setFillColor(15, 15, 15);
+    doc.triangle(0, 0, 0, 65, 120, 65, "F");
+    doc.triangle(0, 0, 120, 65, 140, 0, "F");
+    doc.setFillColor(...goldColor);
+    doc.triangle(140, 0, 120, 65, 123, 65, "F");
+    doc.triangle(140, 0, 143, 0, 123, 65, "F");
+
+    if (lenseBase64) {
+      doc.addImage(lenseBase64, "PNG", -10, -5, 60, 60);
+    }
+
+    let textStartX = 50;
+    if (logoBase64) {
+      // Draw the logo icon on the left
+      doc.addImage(logoBase64, "PNG", 50, 7, 18, 18);
+      textStartX = 72; // Shift text to the right of the logo
+    }
+
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(16);
+    doc.setFont(undefined, "bold");
+    doc.text((companyInfo?.companyName || "RADHESHYAM GUPTA").toUpperCase(), textStartX, 15);
+    
+    doc.setTextColor(...goldColor);
+    doc.setFontSize(10);
+    doc.text("CAMERA DEPARTMENT", textStartX, 22);
+
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(8);
+    doc.setFont(undefined, "normal");
+    const address = companyInfo?.address || "Flat No. 411, Shree Sai Shraddha Chs. Ltd., Siddhart L.T. Road No. 4, Mumbai, Maharashtra - 400104";
+    const splitAddress = doc.splitTextToSize(address, 65);
+    doc.text(splitAddress, 50, 32);
+
+    doc.setTextColor(...goldColor);
+    doc.text(companyInfo?.companyEmail || "radheshyamgupta@gmail.com", 50, 48);
+    doc.text(companyInfo?.contactNumber || "7XXXXXXXXX", 50, 54);
+
+    // Right Side Header
+    doc.setTextColor(0, 0, 0);
+    doc.setFontSize(32);
+    doc.setFont(undefined, "bold");
+    doc.text("INVOICE", 145, 25);
+
+    doc.setFontSize(8);
+    doc.text("INVOICE NO.", 130, 38); doc.text(":", 155, 38);
+    doc.text("BILL DATE", 130, 44); doc.text(":", 155, 44);
+    doc.text("PROJECT", 130, 50); doc.text(":", 155, 50);
+    doc.text("PO / REF NO.", 130, 56); doc.text(":", 155, 56);
+
+    doc.setFont(undefined, "normal");
+    doc.text(formData.billno || "", 160, 38);
+    doc.text(formData.billdate || "", 160, 44);
+    doc.text(doc.splitTextToSize(formData.projectname || "", 40), 160, 50);
+    doc.text(doc.splitTextToSize(formData.campaign || "", 40), 160, 56);
+    
+    doc.setDrawColor(200, 200, 200);
+    doc.line(160, 39, 200, 39);
+    doc.line(160, 45, 200, 45);
+    doc.line(160, 51, 200, 51);
+    doc.line(160, 57, 200, 57);
+
+    // --- MID SECTION (Boxes) ---
+    doc.setDrawColor(...goldColor);
+    doc.setLineWidth(0.4);
+
+    // BILL TO
+    doc.roundedRect(10, 70, 92, 60, 3, 3, "S");
+    doc.setFillColor(...goldColor);
+    doc.triangle(10, 66, 10, 74, 45, 74, "F");
+    doc.triangle(10, 66, 45, 74, 50, 66, "F");
+    doc.setTextColor(0, 0, 0);
+    doc.setFontSize(9);
+    doc.setFont(undefined, "bold");
+    doc.text("BILL TO", 18, 72);
+
+    doc.setFontSize(8);
+    doc.setFont(undefined, "normal");
+    const btLabels = ["Production House / Client :", "Address :", "Contact Person :", "Mobile / Phone :", "Email :", "GSTIN / UIN :"];
+    const btValues = [formData.billto, formData.address || "", "", "", "", formData.gst || ""];
+    let yOffset = 82;
+    for (let i = 0; i < btLabels.length; i++) {
+      doc.text(btLabels[i], 12, yOffset);
+      const splitVal = doc.splitTextToSize(btValues[i] || "", 50);
+      doc.text(splitVal, 48, yOffset);
+      doc.setDrawColor(200, 200, 200);
+      doc.line(48, yOffset + 1, 98, yOffset + 1);
+      yOffset += Math.max(7, splitVal.length * 4);
+    }
+
+    // PROJECT DETAILS
+    doc.setDrawColor(...goldColor);
+    doc.roundedRect(108, 70, 92, 60, 3, 3, "S");
+    doc.setFillColor(15, 15, 15);
+    doc.triangle(108, 66, 108, 74, 155, 74, "F");
+    doc.triangle(108, 66, 155, 74, 160, 66, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(9);
+    doc.setFont(undefined, "bold");
+    doc.text("PROJECT DETAILS", 116, 72);
+
+    doc.setTextColor(0, 0, 0);
+    doc.setFontSize(8);
+    doc.setFont(undefined, "normal");
+    const pdLabels = ["Project Name :", "Shoot Location :", "Production Head :", "Line Producer :", "Director :", "DOP :", "Equipment Package :"];
+    const pdValues = [formData.projectname, "", "", "", "", "", ""];
+    let yOffsetPd = 82;
+    for (let i = 0; i < pdLabels.length; i++) {
+      doc.text(pdLabels[i], 112, yOffsetPd);
+      const splitVal = doc.splitTextToSize(pdValues[i] || "", 50);
+      doc.text(splitVal, 142, yOffsetPd);
+      doc.setDrawColor(200, 200, 200);
+      doc.line(142, yOffsetPd + 1, 198, yOffsetPd + 1);
+      yOffsetPd += Math.max(6.5, splitVal.length * 4);
+    }
+
+    // --- TABLE ---
+    const tableBody = [];
+    const maxRowsData = Math.max(10, formData.shootdate.length, formData.extrasheet.length, formData.conveyance.length, formData.rateperday.length, formData.amount.length);
+    for(let i=0; i < maxRowsData; i++) {
+      tableBody.push([
+        formData.shootdate[i] || '',
+        formData.extrasheet[i] || '',
+        formData.conveyance[i] || '',
+        '', // days
+        formData.rateperday[i] || '',
+        formData.amount[i] || ''
+      ]);
+    }
+
+    autoTable(doc, {
+      startY: 135,
+      head: [['DATE', 'DESCRIPTION\n(Camera Department)', 'POSITION', 'NO. OF\nDAYS / SHIFTS', 'RATE PER\nDAY (Rs)', 'AMOUNT\n(Rs)']],
+      body: tableBody,
+      theme: 'grid',
+      styles: {
+        fontSize: 8,
+        halign: 'center',
+        valign: 'middle',
+        lineColor: [220, 220, 220],
+        lineWidth: 0.1
+      },
+      headStyles: {
+        fillColor: [30, 20, 15], 
+        textColor: goldColor,
+        lineColor: goldColor,
+        lineWidth: 0.2
+      },
+      columnStyles: {
+        1: { halign: 'left', cellWidth: 55 }
+      },
+      didDrawPage: function (data) {
+        if (lenseBase64) {
+          doc.setGState(new doc.GState({opacity: 0.15}));
+          doc.addImage(lenseBase64, "PNG", 55, 150, 100, 100);
+          doc.setGState(new doc.GState({opacity: 1}));
         }
+      }
+    });
 
-        setFormData(updatedFormData);
-    };
+    let finalY = doc.lastAutoTable.finalY + 5;
 
-    const generatePDF = () => {
-        const doc = new jsPDF();
-        doc.setFont("times");
+    // --- FOOTER SECTION ---
+    // Notes Box
+    doc.setTextColor(...goldColor);
+    doc.setFontSize(8);
+    doc.setFont(undefined, "bold");
+    doc.text("NOTES / REMARKS", 12, finalY);
+    doc.setDrawColor(...goldColor);
+    doc.line(42, finalY, 60, finalY);
 
-        // Header
-        doc.setFontSize(34);
-        doc.setFont(undefined, "bold");
-        doc.text(companyInfo?.companyName || "RADHE GUPTA", 105, 20, { align: "center" });
+    doc.setDrawColor(200, 200, 200);
+    doc.roundedRect(10, finalY - 5, 120, 20, 2, 2, "S");
+    doc.setTextColor(0, 0, 0);
+    doc.setFont(undefined, "normal");
+    doc.text("", 12, finalY + 5);
 
-        doc.setFontSize(11);
-        doc.setFont(undefined, "normal");
-        doc.text(
-            companyInfo?.address ||
-            "Flat No.411, Shree Sai Shraddha Chs. Ltd., Siddhart L.T. Road No.4 & 5,\nGoregaon West, Mumbai - 400 104",
-            105,
-            30,
-            { align: "center" }
-        );
+    // Totals Box
+    doc.setDrawColor(...goldColor);
+    doc.rect(135, finalY - 5, 65, 20, "S");
+    
+    doc.line(135, finalY + 2, 200, finalY + 2);
+    doc.line(135, finalY + 9, 200, finalY + 9);
+    doc.line(175, finalY - 5, 175, finalY + 15);
 
-        doc.setFont(undefined, "bold");
-        doc.text(`Email Id.: ${companyInfo?.companyEmail || "radheshyammau2@gmail.com"}`, 105, 45, {
-            align: "center",
-        });
-        doc.text(`Contact No.: ${companyInfo?.contactNumber || "7985593140"}`, 105, 52, {
-            align: "center",
-        });
+    doc.setFont(undefined, "bold");
+    doc.text("SUB TOTAL", 137, finalY);
+    doc.text("Rs " + (formData.totalamount || "0"), 177, finalY);
 
-        doc.setFontSize(20);
-        doc.text("INVOICE", 105, 70, { align: "center" });
+    doc.text("GST @ ___ %", 137, finalY + 7);
+    doc.text("Rs 0.00", 177, finalY + 7);
 
-        // Layout Boxes
-        doc.rect(10, 75, 190, 180); // Outer Box
-        doc.rect(48, 157, 38, 98); // Mid Column
-        doc.rect(124, 157, 38, 98); // Right Column
-        doc.line(100, 75, 100, 155); // ✅ Right-side border of left column only
-        // Bill To
-        doc.setFontSize(11);
-        doc.setFont(undefined, "bold");
-        doc.text("Bill To:", 12, 82);
-        doc.setFont(undefined, "normal");
-        doc.text(formData.billto, 30, 82);
+    doc.setFillColor(180, 130, 50); // Gold-ish background
+    doc.rect(135, finalY + 9, 65, 6, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.text("TOTAL AMOUNT", 137, finalY + 13.5);
+    doc.text("Rs " + (formData.totalamount || "0"), 177, finalY + 13.5);
 
-        // Left Column Info
-        doc.setFontSize(12); // Set font size to 12
-        doc.setFont(undefined, "bold"); // Set font to bold
+    finalY += 22;
 
-        let leftInfo = `Project Name : ${formData.projectname}`;
-        if (formData.campaign) leftInfo += `\nCampaign Code : ${formData.campaign}`;
-        leftInfo += `\nGPay/Phonepe: ${companyInfo?.gpayPhonepe || "+91 1231231231"}`;
-        leftInfo += `\nBank Name : ${companyInfo?.bankName || "Bank of ****"}`;
-        leftInfo += `\nAccount Name: ${companyInfo?.accountName || "Full Name"}`;
-        leftInfo += `\nAccount No. : ${companyInfo?.accountNo || "282******14308"}`;
-        leftInfo += `\nIFSC Code : ${companyInfo?.ifscCode || "BA***IBS"}`;
-        leftInfo += `\nBranch : ${companyInfo?.branch || "Pa***har Mau 27***1"}`;
+    // Words
+    doc.setTextColor(0, 0, 0);
+    doc.text("Amount In Words :", 10, finalY);
+    doc.setFont(undefined, "normal");
+    doc.text(formData.amountinword || "", 40, finalY);
+    doc.setDrawColor(150, 150, 150);
+    doc.line(40, finalY + 1, 200, finalY + 1);
 
-        // Convert to array of lines
-        const lines = leftInfo.split('\n');
+    finalY += 8;
 
-        // Draw the text with line height
-        doc.text(lines, 12, 100, { lineHeightFactor: 1.5 }); // 1.5 gives a nice readable spacing
+    // Bank Details & Signature
+doc.setDrawColor(...goldColor);
+doc.roundedRect(10, finalY, 95, 25, 2, 2, "S");
+
+doc.setFillColor(15, 15, 15);
+
+// 👇 overlap by +1 or +2 px
+doc.triangle(10, finalY - 2, 10, finalY + 4, 42, finalY + 4, "F");
+doc.triangle(10, finalY - 2, 42, finalY + 4, 45, finalY - 2, "F");
+
+doc.setTextColor(255, 255, 255);
+doc.setFont(undefined, "bold");
+doc.text("BANK DETAILS", 14, finalY + 2);
+
+    doc.setTextColor(0, 0, 0);
+    doc.setFontSize(8);
+    doc.setFont(undefined, "normal");
+    doc.text("Account Name  : " + (companyInfo?.accountName || "RADHESHYAM GUPTA"), 12, finalY + 8);
+    doc.text("Account No.     : " + (companyInfo?.accountNo || "XXXXXXXXXXXX"), 12, finalY + 12);
+    doc.text("Bank Name       : " + (companyInfo?.bankName || ""), 12, finalY + 16);
+    doc.text("Branch             : " + (companyInfo?.branch || ""), 12, finalY + 20);
+    doc.text("IFSC Code        : " + (companyInfo?.ifscCode || ""), 12, finalY + 24);
+
+    doc.roundedRect(115, finalY, 85, 25, 2, 2, "S");
+    doc.setFillColor(15, 15, 15);
+    doc.triangle(115, finalY - 2, 115, finalY + 4, 165, finalY + 4, "F");
+    doc.triangle(115, finalY - 2, 165, finalY + 4, 170, finalY - 2, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFont(undefined, "bold");
+    doc.text("AUTHORISED SIGNATURE", 120, finalY + 2);
+
+    doc.setDrawColor(0, 0, 0);
+    doc.line(125, finalY + 19, 195, finalY + 19);
+    doc.setTextColor(0, 0, 0);
+    doc.setFont(undefined, "normal");
+    doc.text("(Radheshyam Gupta)", 160, finalY + 23, { align: "center" });
+
+    // Bottom Bar
+    doc.setFillColor(15, 15, 15);
+    doc.rect(0, 285, 210, 12, "F");
+    doc.setTextColor(...goldColor);
+    doc.setFontSize(9);
+    doc.setFont(undefined, "bold");
+    doc.text("THANK YOU FOR YOUR BUSINESS!", 105, 292, { align: "center" });
+    doc.setDrawColor(...goldColor);
+    doc.line(30, 291, 70, 291);
+    doc.line(140, 291, 180, 291);
+
+    return doc;
+  };
+
+  const generatePDF = () => {
+    if (pdfDesign === "new") return generateNewPDF();
+
+    const doc = new jsPDF();
+    doc.setFont("times");
+    doc.setFontSize(34);
+    doc.setFont(undefined, "bold");
+    doc.text((companyInfo?.companyName || "RADHE GUPTA").toUpperCase(), 105, 20, { align: "center" });
+
+    doc.setFontSize(11);
+    doc.setFont(undefined, "normal");
+    const rawAddress = companyInfo?.address || "Enter Your Address";
+    const addressLines = splitTextByLength(rawAddress, 100);
+    doc.text(addressLines, 105, 30, { align: "center", lineHeightFactor: 1.5 });
+
+    doc.text(` ${companyInfo?.district || "district"}, ${companyInfo?.state || "state"}, ${companyInfo?.pincode || "pincode"}`, 105, 37, { align: "center" });
+    doc.text(`Email Id.: ${companyInfo?.companyEmail || "Enter Your Email "}`, 105, 45, { align: "center" });
+    doc.text(`Contact No.: ${companyInfo?.contactNumber || "Enter Your Mobile no"}`, 105, 52, { align: "center" });
+
+    doc.setFontSize(20);
+    doc.setFont(undefined, "bold");
+    doc.text("INVOICE", 105, 70, { align: "center" });
+
+    doc.rect(10, 75, 190, 180); // Outer box
+    doc.rect(48, 157, 38, 98); // Mid Column
+    doc.rect(124, 157, 38, 98); // Right Column
+    doc.line(100, 75, 100, 155); // Vertical Divider
+
+    doc.setFontSize(11);
+    doc.setFont(undefined, "bold");
+    doc.text("Bill To:", 12, 82);
+    const billto = splitTextByLength(formData.billto, 28);
+    doc.text(billto, 30, 82);
 
 
-        // Right Column Info
-        doc.setFont(undefined, "bold");
 
-        let rightInfo = `Bill No.: ${formData.billno}
+    doc.text("Project Name:", 12, 100);
+    const projectname = splitTextByLength(formData.projectname, 30);
+    doc.text(projectname, 37, 100);
+
+    let leftInfo = ``;
+    if (formData.address) leftInfo += `\nCompany Address. : ${splitTextByLength(formData.address, 28).join("\n")}`;
+
+    if (formData.pan) leftInfo += `\nCompany GST No. : ${formData.gst}`;
+    if (formData.pan) leftInfo += `\nCompany PAN No. : ${formData.pan}`;
+
+    doc.text(leftInfo.split("\n"), 12, 106, { lineHeightFactor: 1.5 });
+
+    let rightInfo = `Bill No.: ${formData.billno}
 Bill Date: ${formData.billdate}
-Post : Camera Focus Puller
-Pan No.: ${companyInfo?.panNo || "DA***3*L"}
-GSTIN/UIN : ${formData.gst || ""}`;
+Post : ${companyInfo?.post || ''}
+Pan No.: ${companyInfo?.panNo || "DA***3*L"} `;
+    if (formData.campaign) leftInfo += `\nCampaign Code : ${formData.campaign}`;
+    rightInfo += `\nGPay/Phonepe: ${companyInfo?.gpayPhonepe || "+91 1231231231"}`;
+    rightInfo += `\nBank Name : ${companyInfo?.bankName || "Enter Your Bank of ****"}`;
+    rightInfo += `\nAccount Name: ${companyInfo?.accountName || " Enter YourFull Name"}`;
+    rightInfo += `\nAccount No. : ${companyInfo?.accountNo || " Enter Your282******14308"}`;
+    rightInfo += `\nIFSC Code : ${companyInfo?.ifscCode || " Enter YourBA***IBS"}`;
+    rightInfo += `\nBranch : ${companyInfo?.branch || " Enter YourPa***har Mau 27***1"}`;
+    doc.text(rightInfo.split("\n"), 102, 82, { lineHeightFactor: 1.5 });
 
-        // Split into array for lineHeightFactor to work
-        const rightLines = rightInfo.split('\n');
+    const colStartY = 147;
+    doc.setFont(undefined, "bold");
+    doc.setFillColor(230, 230, 230);
+    doc.rect(10, colStartY, 38, 10, "FD");
+    doc.rect(48, colStartY, 38, 10, "FD");
+    doc.rect(86, colStartY, 38, 10, "FD");
+    doc.rect(124, colStartY, 38, 10, "FD");
+    doc.rect(162, colStartY, 38, 10, "FD");
 
-        doc.text(rightLines, 102, 102, { lineHeightFactor: 2 });
+    doc.text("SHOOT DATE", 11, colStartY + 7);
+    doc.text("EXTRA SHIFT", 49, colStartY + 7);
+    doc.text("CONVEYANCE", 87, colStartY + 7);
+    doc.text("RATE PER DAY", 125, colStartY + 7);
+    doc.text("AMOUNT", 163, colStartY + 7);
 
+    const { shootdate, extrasheet, conveyance, rateperday, amount } = formData;
+    const maxRows = Math.max(shootdate.length, extrasheet.length, conveyance.length, rateperday.length, amount.length);
 
-        // Table Header
-        const colStartY = 147;
-        doc.setFont(undefined, "bold");
-        doc.setFontSize(10);
-        // doc.setDrawColor(0);
-        doc.setFillColor(230, 230, 230);
-        doc.rect(10, colStartY, 38, 10, "FD");
-        doc.rect(48, colStartY, 38, 10, "FD");
-        doc.rect(86, colStartY, 38, 10, "FD");
-        doc.rect(124, colStartY, 38, 10, "FD");
-        doc.rect(162, colStartY, 38, 10, "FD");
+    // Font size adjustment for many rows
+    let rowGap = maxRows > 10 ? 4 : 5;
+    doc.setFontSize(maxRows > 10 ? 10 : 12);
+    doc.setFont(undefined, "normal");
 
-        doc.text("SHOOT DATE", 11, colStartY + 7);
-        doc.text("EXTRA SHIFT", 49, colStartY + 7);
-        doc.text("CONVEYANCE", 87, colStartY + 7);
-        doc.text("RATE PER DAY", 125, colStartY + 7);
-        doc.text("AMOUNT", 163, colStartY + 7);
+    let rowY = 157;
+    for (let i = 0; i < maxRows; i++) {
+      doc.text(shootdate[i] || "", 10 + 38 / 2, rowY + rowGap, { align: "center" });
+      doc.text(extrasheet[i] || "", 48 + 38 / 2, rowY + rowGap, { align: "center" });
+      doc.text(conveyance[i] || "", 86 + 38 / 2, rowY + rowGap, { align: "center" });
+      doc.text(rateperday[i] || "", 124 + 38 / 2, rowY + rowGap, { align: "center" });
+      doc.text(amount[i] || "", 162 + 38 / 2, rowY + rowGap, { align: "center" });
+      rowY += rowGap;
+    }
 
-        // Table Rows
-        const shootDates = formData.shootdate.split("\n");
-        const extraShifts = formData.extrasheet.split("\n");
-        const conveyances = formData.conveyance.split("\n");
-        const ratePerDay = formData.rateperday.split("\n");
-        const amounts = formData.amount.split("\n");
+    doc.setFont(undefined, "bold");
+    doc.rect(10, 245, 152, 10);
+    doc.rect(162, 245, 38, 10);
+    doc.text("TOTAL AMOUNT:", 160, 252, { align: "right" });
+    doc.text(formData.totalamount || "", 164, 252, { align: "left" });
 
-        let rowY = 157;
-        for (let i = 0; i < shootDates.length; i++) {
-            doc.setFont(undefined, "normal");
+    doc.setFont(undefined, "normal");
+    doc.text(`Rupees In Words : ${formData.amountinword}`, 10, 260);
 
-            // Center positions of each column based on your rect x and width
-            doc.text(shootDates[i] || "", 10 + 38 / 2, rowY + 7, { align: "center" });
-            doc.text(extraShifts[i] || "", 48 + 38 / 2, rowY + 7, { align: "center" });
-            doc.text(conveyances[i] || "", 86 + 38 / 2, rowY + 7, { align: "center" });
-            doc.text(ratePerDay[i] || "", 124 + 38 / 2, rowY + 7, { align: "center" });
-            doc.text(amounts[i] || "", 162 + 38 / 2, rowY + 7, { align: "center" });
+    doc.setFont(undefined, "bold");
+    doc.rect(10, 265, 190, 10);
 
-            rowY += 7;
-        }
+    if (signatureType === "text") {
+      doc.text(`Signature: ${companyInfo?.signatureName || "No Sign Added"}`, 12, 272);
+    } else if (signatureType === "image" && companyInfo?.digitalSignature) {
+      try {
+        doc.text(`Signature`, 12, 272);
+        doc.addImage(companyInfo.digitalSignature, "PNG", 29, 265, 40, 10);
+      } catch (err) {
+        console.error("❌ Failed to add signature image:", err);
+        doc.text("Signature: [Invalid Image]", 12, 272);
+      }
+    }
+    doc.text("Authorised Signature", 200, 272, { align: "right" });
 
+    return doc;
+  };
 
-        // Total
-        doc.setFont(undefined, "bold");
-        doc.rect(10, 245, 152, 10);
-        doc.rect(162, 245, 38, 10);
-        doc.text("TOTAL AMOUNT:", 160, 252, { align: "right" });
-        doc.text(formData.totalamount || "", 164, 252, { align: "left" });
-
-        // Amount in Words
-        doc.setFont(undefined, "normal");
-        doc.text(`Rupees In Words : ${formData.amountinword}`, 10, 260);
-
-        // Footer
-        doc.setFont(undefined, "bold");
-        doc.rect(10, 265, 190, 10);
-        doc.text(`Signature: ${companyInfo?.signatureName || "Radhe"}`, 12, 272);
-        doc.text("Authorised Signature", 200, 272, { align: "right" });
-
-        return doc;
-    };
-
-const handleGeneratePDF = async (e) => {
+  const handleGeneratePDF = async (e) => {
     e.preventDefault();
     const docPdf = generatePDF();
     docPdf.save(`invoice-${formData.billno || "generated"}.pdf`);
 
     try {
-        const uid = localStorage.getItem("uid");
-        if (!uid) {
-            console.warn("User not logged in or UID not found.");
-            return;
-        }
-
-        const userRef = doc(db, "users", uid);
-        const userSnap = await getDoc(userRef);
-
-        if (userSnap.exists()) {
-            const currentCount = userSnap.data().downloadCount || 0;
-
-            await updateDoc(userRef, {
-                downloadCount: currentCount + 1
-            });
-
-            console.log(`✅ Updated PDF download count: ${currentCount + 1}`);
-        } else {
-            console.warn("⚠️ User document not found in Firestore.");
-        }
+      const uid = localStorage.getItem("uid");
+      if (!uid) return;
+      const userRef = doc(db, "users", uid);
+      const userSnap = await getDoc(userRef);
+      if (userSnap.exists()) {
+        const currentCount = userSnap.data().downloadCount || 0;
+        await updateDoc(userRef, { downloadCount: currentCount + 1 });
+        console.log(`✅ Updated PDF download count: ${currentCount + 1}`);
+      }
     } catch (err) {
-        console.error("❌ Error updating download count:", err);
+      console.error("❌ Error updating download count:", err);
     }
-};
+  };
 
-    const handlePreviewPDF = () => {
-        const doc = generatePDF();
-        const pdfDataUrl = doc.output("dataurlstring");
-        setPdfUrl(pdfDataUrl);
-        setPreviewOpen(true);
-    };
+  const handlePreviewPDF = () => {
+    const doc = generatePDF();
+    setPdfUrl(doc.output("dataurlstring"));
+    setPreviewOpen(true);
+  };
 
-    return (
-          <div className="p-6 bg-white text-black">
-            <h2 className="text-xl font-bold mb-4">Bill Generator</h2>
-            <form onSubmit={handleGeneratePDF} className="space-y-4">
-                {[
-                    ["billto", "Bill To"],
-                    ["projectname", "Project Name"],
-                    ["campaign", "Campaign Code (optional)"],
-                    ["billno", "Bill No"],
-                    ["billdate", "Bill Date"],
-                    ["shootdate", "Shoot Date(s)"],
-                    ["extrasheet", "Extra Shift"],
-                    ["conveyance", "Conveyance"],
-                    ["rateperday", "Rate Per Day"],
-                    ["amount", "Amount"],
-                    ["gst", "GST"],
-                    ["amountinword", "Amount in Words"],
-                    ["totalamount", "Total Amount"],
-                ].map(([name, label]) => (
-                    <div key={name}>
-                        <label className="block mb-1 font-medium">{label}</label>
-                        <textarea
-                            name={name}
-                            rows={["shootdate", "extrasheet", "conveyance", "rateperday", "amount"].includes(name) ? 2 : 1}
-                            className="w-full border border-black rounded px-2 py-1 text-black"
-                            onChange={handleChange}
-                            value={formData[name]}
-                        />
-                    </div>
-                ))}
+  return (
+    <div className="hero min-h-screen bg-base-200 p-4">
+      <div className="card w-full max-w-4xl shadow-xl bg-base-100 p-6">
+        <h2 className="text-2xl font-bold mb-6 text-center">Bill Generator</h2>
 
-                <button
-                    type="submit"
-                    className="w-full mt-4 bg-black text-white py-2 px-4 rounded hover:bg-gray-800"
-                >
-                    Generate Invoice PDF
-                </button>
-            </form>
-
-            {/* Floating Preview Button */}
-            <button
-                type="button"
-                onClick={handlePreviewPDF}
-                className="fixed bottom-6 right-6 bg-blue-600 text-white rounded-full w-14 h-14 flex items-center justify-center shadow-lg hover:bg-blue-700"
-                title="Live Preview"
-            >
-                👁️
-            </button>
-
-            {/* Modal for Preview */}
-            {previewOpen && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
-                    <div className="bg-white p-4 rounded-lg max-w-4xl w-full h-[80vh] relative">
-                        <button
-                            onClick={() => setPreviewOpen(false)}
-                            className="absolute top-2 right-2 text-red-500 font-bold text-xl"
-                        >
-                            ×
-                        </button>
-                        <h2 className="text-lg font-bold mb-2">Invoice Preview</h2>
-                        <iframe
-                            src={pdfUrl}
-                            title="PDF Preview"
-                            className="w-full h-full border"
-                        />
-                    </div>
+        <form onSubmit={handleGeneratePDF} className="space-y-8">
+          {/* Invoice Details */}
+          <div className="border p-4 rounded-lg">
+            <h3 className="text-xl font-semibold mb-4 border-b pb-2">Invoice Details</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {[
+                ["billto", "Bill To"],
+                ["projectname", "Project Name"],
+                ["address", "Company Address"],
+                ["campaign", "Campaign Code (optional)"],
+                ["billno", "Bill No"],
+                ["billdate", "Bill Date"],
+                ["gst", "Company GST"],
+                ["pan", " Company PAN"]
+              ].map(([name, label]) => (
+                <div className="form-control" key={name}>
+                  <label className="label" htmlFor={name}>
+                    <span className="label-text font-medium">{label}</span>
+                  </label>
+                  <input
+                    name={name}
+                    id={name}
+                    type="text"
+                    className="input input-bordered w-full"
+                    onChange={handleChange}
+                    value={formData[name]}
+                  />
                 </div>
-            )}
+              ))}
+            </div>
+          </div>
+
+          {/* Billing Details */}
+          <div className="border p-4 rounded-lg">
+            <h3 className="text-xl font-semibold mb-4 border-b pb-2">Billing Details</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {[
+                ["shootdate", "Shoot Date(s)"],
+                ["extrasheet", "Extra Shift"],
+                ["conveyance", "Conveyance"],
+                ["rateperday", "Rate Per Day"],
+                ["amount", "Amount"],
+              ].map(([name, label]) => (
+                <div className="form-control" key={name}>
+                  <label className="label">
+                    <span className="label-text font-medium">{label}</span>
+                  </label>
+                  {formData[name].map((val, idx) => (
+                    <input
+                      key={idx}
+                      type="text"
+                      className="input input-bordered w-full mb-2"
+                      value={val}
+                      onChange={(e) => handleArrayChange(e, name, idx)}
+                    />
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => handleAddField(name)}
+                    className="btn btn-outline btn-sm mt-2"
+                  >
+                    + Add {label}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Signature */}
+          <div className="border p-4 rounded-lg">
+            <h3 className="text-xl font-semibold mb-4 border-b pb-2">Signature Options</h3>
+            <div className="flex gap-6">
+              <label className="flex items-center gap-2">
+                <input
+                  type="radio"
+                  name="signatureType"
+                  value="text"
+                  checked={signatureType === "text"}
+                  onChange={(e) => setSignatureType(e.target.value)}
+                  className="radio"
+                />
+                Signature Name
+              </label>
+              <label className="flex items-center gap-2">
+                <input
+                  type="radio"
+                  name="signatureType"
+                  value="image"
+                  checked={signatureType === "image"}
+                  onChange={(e) => setSignatureType(e.target.value)}
+                  className="radio"
+                />
+                Digital Signature
+              </label>
+            </div>
+          </div>
+
+          {/* PDF Template */}
+          <div className="border p-4 rounded-lg">
+            <h3 className="text-xl font-semibold mb-4 border-b pb-2">PDF Design Template</h3>
+            <div className="flex gap-6">
+              <label className="flex items-center gap-2">
+                <input
+                  type="radio"
+                  name="pdfDesign"
+                  value="current"
+                  checked={pdfDesign === "current"}
+                  onChange={(e) => setPdfDesign(e.target.value)}
+                  className="radio"
+                />
+                Current Design
+              </label>
+              <label className="flex items-center gap-2">
+                <input
+                  type="radio"
+                  name="pdfDesign"
+                  value="new"
+                  checked={pdfDesign === "new"}
+                  onChange={(e) => setPdfDesign(e.target.value)}
+                  className="radio"
+                />
+                New Premium Design
+              </label>
+            </div>
+          </div>
+
+          {/* Submit */}
+          <div>
+            <button type="submit" className="btn btn-primary w-full text-lg">
+              Generate Invoice PDF
+            </button>
+          </div>
+        </form>
+      </div>
+
+      {/* Preview Button */}
+      <button
+        type="button"
+        onClick={handlePreviewPDF}
+        className="fixed bottom-6 right-6 bg-primary text-white rounded-full w-14 h-14 flex items-center justify-center shadow-lg hover:bg-primary-focus"
+        title="Live Preview"
+      >
+        👁️
+      </button>
+
+      {/* Preview Modal */}
+      {previewOpen && (
+        <div className="fixed inset-0 z-50 bg-base-200 bg-opacity-80 flex items-center justify-center p-4">
+          <div className="relative w-full h-full max-w-5xl max-h-[90vh] bg-base-100 rounded shadow-lg">
+            <button
+              onClick={() => setPreviewOpen(false)}
+              className="absolute top-2 right-2 text-white bg-red-500 hover:bg-red-600 px-3 py-1 rounded z-10"
+            >
+              Close
+            </button>
+            <iframe src={pdfUrl} title="PDF Preview" className="w-full h-full" />
+          </div>
         </div>
-    );
+      )}
+    </div>
+  );
 }

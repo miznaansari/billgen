@@ -120,6 +120,22 @@ export default function BillGenForm() {
     setFormData({ ...formData, [field]: [...formData[field], ""] });
   };
 
+  const handleRemoveField = (field, index) => {
+    const updated = [...formData[field]];
+    updated.splice(index, 1);
+    const newData = { ...formData, [field]: updated };
+
+    if (field === "amount") {
+      const total = updated.reduce((sum, val) => sum + (parseFloat(val.trim()) || 0), 0);
+      newData.totalamount = total.toFixed(2);
+      const totalInt = Math.floor(total);
+      const totalDecimal = Math.round((total - totalInt) * 100);
+      newData.amountinword = numberToWords(totalInt) + (totalDecimal ? ` and ${totalDecimal}/100` : '') + ' only';
+    }
+
+    setFormData(newData);
+  };
+
   function splitTextByLength(text, maxLength) {
     const words = text.split(' ');
     const lines = [];
@@ -144,27 +160,35 @@ export default function BillGenForm() {
     
     // --- TOP HEADER ---
     doc.setFillColor(15, 15, 15);
-    doc.triangle(0, 0, 0, 65, 120, 65, "F");
-    doc.triangle(0, 0, 120, 65, 140, 0, "F");
+    doc.setDrawColor(15, 15, 15);
+    doc.setLineWidth(0.5);
+    doc.triangle(0, 0, 0, 65, 120, 65, "FD");
+    doc.triangle(0, 0, 120, 65, 140, 0, "FD");
+
     doc.setFillColor(...goldColor);
-    doc.triangle(140, 0, 120, 65, 123, 65, "F");
-    doc.triangle(140, 0, 143, 0, 123, 65, "F");
+    doc.setDrawColor(...goldColor);
+    doc.triangle(140, 0, 120, 65, 123, 65, "FD");
+    doc.triangle(140, 0, 143, 0, 123, 65, "FD");
 
     if (lenseBase64) {
       doc.addImage(lenseBase64, "PNG", -10, -5, 60, 60);
     }
 
+    let textStartX = 50;
     if (logoBase64) {
-      doc.addImage(logoBase64, "PNG", 50, 10, 60, 15);
-    } else {
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(16);
-      doc.setFont(undefined, "bold");
-      doc.text((companyInfo?.companyName || "RADHESHYAM GUPTA").toUpperCase(), 50, 18);
-      doc.setTextColor(...goldColor);
-      doc.setFontSize(10);
-      doc.text("CAMERA DEPARTMENT", 50, 24);
+      // Draw the logo icon on the left
+      doc.addImage(logoBase64, "PNG", 50, 7, 18, 18);
+      textStartX = 72; // Shift text to the right of the logo
     }
+
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(16);
+    doc.setFont(undefined, "bold");
+    doc.text((companyInfo?.companyName || "RADHESHYAM GUPTA").toUpperCase(), textStartX, 15);
+    
+    doc.setTextColor(...goldColor);
+    doc.setFontSize(10);
+    doc.text("CAMERA DEPARTMENT", textStartX, 22);
 
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(8);
@@ -173,9 +197,12 @@ export default function BillGenForm() {
     const splitAddress = doc.splitTextToSize(address, 65);
     doc.text(splitAddress, 50, 32);
 
+    let contactStartY = 32 + (splitAddress.length * 4) + 4;
+    if (contactStartY < 48) contactStartY = 48;
+
     doc.setTextColor(...goldColor);
-    doc.text(companyInfo?.companyEmail || "radheshyamgupta@gmail.com", 50, 48);
-    doc.text(companyInfo?.contactNumber || "7XXXXXXXXX", 50, 54);
+    doc.text(companyInfo?.companyEmail || "radheshyamgupta@gmail.com", 50, contactStartY);
+    doc.text(companyInfo?.contactNumber || "7XXXXXXXXX", 50, contactStartY + 6);
 
     // Right Side Header
     doc.setTextColor(0, 0, 0);
@@ -184,80 +211,129 @@ export default function BillGenForm() {
     doc.text("INVOICE", 145, 25);
 
     doc.setFontSize(8);
-    doc.text("INVOICE NO.", 130, 38); doc.text(":", 155, 38);
-    doc.text("BILL DATE", 130, 44); doc.text(":", 155, 44);
-    doc.text("PROJECT", 130, 50); doc.text(":", 155, 50);
-    doc.text("PO / REF NO.", 130, 56); doc.text(":", 155, 56);
-
-    doc.setFont(undefined, "normal");
-    doc.text(formData.billno || "", 160, 38);
-    doc.text(formData.billdate || "", 160, 44);
-    doc.text(doc.splitTextToSize(formData.projectname || "", 40), 160, 50);
-    doc.text(doc.splitTextToSize(formData.campaign || "", 40), 160, 56);
+    let rightY = 38;
     
-    doc.setDrawColor(200, 200, 200);
-    doc.line(160, 39, 200, 39);
-    doc.line(160, 45, 200, 45);
-    doc.line(160, 51, 200, 51);
-    doc.line(160, 57, 200, 57);
+    doc.setFont(undefined, "bold");
+    doc.text("INVOICE NO.", 130, rightY); doc.text(":", 155, rightY);
+    doc.setFont(undefined, "normal"); doc.text(formData.billno || "", 160, rightY);
+    doc.setDrawColor(200, 200, 200); doc.line(160, rightY + 1.5, 200, rightY + 1.5);
+    
+    rightY += 6;
+    doc.setFont(undefined, "bold");
+    doc.text("BILL DATE", 130, rightY); doc.text(":", 155, rightY);
+    doc.setFont(undefined, "normal"); doc.text(formData.billdate || "", 160, rightY);
+    doc.line(160, rightY + 1.5, 200, rightY + 1.5);
+
+    rightY += 6;
+    doc.setFont(undefined, "bold");
+    doc.text("PROJECT", 130, rightY); doc.text(":", 155, rightY);
+    doc.setFont(undefined, "normal");
+    const splitProject = doc.splitTextToSize(formData.projectname || "", 40);
+    for(let j=0; j<splitProject.length; j++){
+       doc.text(splitProject[j], 160, rightY + (j*5));
+       doc.line(160, rightY + (j*5) + 1.5, 200, rightY + (j*5) + 1.5);
+    }
+    
+    rightY += Math.max(6, splitProject.length * 5 + 1);
+    doc.setFont(undefined, "bold");
+    doc.text("PO / REF NO.", 130, rightY); doc.text(":", 155, rightY);
+    doc.setFont(undefined, "normal");
+    const splitCampaign = doc.splitTextToSize(formData.campaign || "", 40);
+    for(let j=0; j<splitCampaign.length; j++){
+       doc.text(splitCampaign[j], 160, rightY + (j*5));
+       doc.line(160, rightY + (j*5) + 1.5, 200, rightY + (j*5) + 1.5);
+    }
+
+    let boxStartY = Math.max(70, rightY + (splitCampaign.length * 5) + 5, contactStartY + 15);
 
     // --- MID SECTION (Boxes) ---
     doc.setDrawColor(...goldColor);
     doc.setLineWidth(0.4);
 
-    // BILL TO
-    doc.roundedRect(10, 70, 92, 60, 3, 3, "S");
-    doc.setFillColor(...goldColor);
-    doc.triangle(10, 66, 10, 74, 45, 74, "F");
-    doc.triangle(10, 66, 45, 74, 50, 66, "F");
-    doc.setTextColor(0, 0, 0);
-    doc.setFontSize(9);
-    doc.setFont(undefined, "bold");
-    doc.text("BILL TO", 18, 72);
-
     doc.setFontSize(8);
     doc.setFont(undefined, "normal");
     const btLabels = ["Production House / Client :", "Address :", "Contact Person :", "Mobile / Phone :", "Email :", "GSTIN / UIN :"];
     const btValues = [formData.billto, formData.address || "", "", "", "", formData.gst || ""];
-    let yOffset = 82;
+    const btSplitValues = btValues.map(v => doc.splitTextToSize(v || "", 50));
+    let btTotalHeight = 0;
+    btSplitValues.forEach(splitVal => {
+      btTotalHeight += Math.max(7, splitVal.length * 5.5);
+    });
+
+    const pdLabels = ["Project Name :", "Shoot Location :", "Production Head :", "Line Producer :", "Director :", "DOP :", "Equipment Package :"];
+    const pdValues = [formData.projectname, "", "", "", "", "", ""];
+    const pdSplitValues = pdValues.map(v => doc.splitTextToSize(v || "", 50));
+    let pdTotalHeight = 0;
+    pdSplitValues.forEach(splitVal => {
+      pdTotalHeight += Math.max(7, splitVal.length * 5.5);
+    });
+
+    const boxHeight = Math.max(60, btTotalHeight + 15, pdTotalHeight + 15);
+
+    // BILL TO
+    doc.setDrawColor(...goldColor);
+    doc.setLineWidth(0.4);
+    doc.roundedRect(10, boxStartY, 92, boxHeight, 3, 3, "S");
+    
+    doc.setFillColor(...goldColor);
+    doc.setDrawColor(...goldColor);
+    doc.setLineWidth(0.5);
+    doc.triangle(10, boxStartY - 4, 10, boxStartY + 4, 45, boxStartY + 4, "FD");
+    doc.triangle(10, boxStartY - 4, 45, boxStartY + 4, 50, boxStartY - 4, "FD");
+    doc.setTextColor(0, 0, 0);
+    doc.setFontSize(9);
+    doc.setFont(undefined, "bold");
+    doc.text("BILL TO", 18, boxStartY + 2);
+
+    doc.setFontSize(8);
+    doc.setFont(undefined, "normal");
+    let yOffset = boxStartY + 12;
     for (let i = 0; i < btLabels.length; i++) {
       doc.text(btLabels[i], 12, yOffset);
-      const splitVal = doc.splitTextToSize(btValues[i] || "", 50);
-      doc.text(splitVal, 48, yOffset);
-      doc.setDrawColor(200, 200, 200);
-      doc.line(48, yOffset + 1, 98, yOffset + 1);
-      yOffset += Math.max(7, splitVal.length * 4);
+      const splitVal = btSplitValues[i];
+      for (let j = 0; j < splitVal.length; j++) {
+        doc.text(splitVal[j], 48, yOffset + (j * 5.5));
+        doc.setDrawColor(200, 200, 200);
+        doc.setLineWidth(0.2);
+        doc.line(48, yOffset + (j * 5.5) + 1.5, 98, yOffset + (j * 5.5) + 1.5);
+      }
+      yOffset += Math.max(7, splitVal.length * 5.5);
     }
 
     // PROJECT DETAILS
     doc.setDrawColor(...goldColor);
-    doc.roundedRect(108, 70, 92, 60, 3, 3, "S");
+    doc.setLineWidth(0.4);
+    doc.roundedRect(108, boxStartY, 92, boxHeight, 3, 3, "S");
+    
     doc.setFillColor(15, 15, 15);
-    doc.triangle(108, 66, 108, 74, 155, 74, "F");
-    doc.triangle(108, 66, 155, 74, 160, 66, "F");
+    doc.setDrawColor(15, 15, 15);
+    doc.setLineWidth(0.5);
+    doc.triangle(108, boxStartY - 4, 108, boxStartY + 4, 155, boxStartY + 4, "FD");
+    doc.triangle(108, boxStartY - 4, 155, boxStartY + 4, 160, boxStartY - 4, "FD");
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(9);
     doc.setFont(undefined, "bold");
-    doc.text("PROJECT DETAILS", 116, 72);
+    doc.text("PROJECT DETAILS", 116, boxStartY + 2);
 
     doc.setTextColor(0, 0, 0);
     doc.setFontSize(8);
     doc.setFont(undefined, "normal");
-    const pdLabels = ["Project Name :", "Shoot Location :", "Production Head :", "Line Producer :", "Director :", "DOP :", "Equipment Package :"];
-    const pdValues = [formData.projectname, "", "", "", "", "", ""];
-    let yOffsetPd = 82;
+    let yOffsetPd = boxStartY + 12;
     for (let i = 0; i < pdLabels.length; i++) {
       doc.text(pdLabels[i], 112, yOffsetPd);
-      const splitVal = doc.splitTextToSize(pdValues[i] || "", 50);
-      doc.text(splitVal, 142, yOffsetPd);
-      doc.setDrawColor(200, 200, 200);
-      doc.line(142, yOffsetPd + 1, 198, yOffsetPd + 1);
-      yOffsetPd += Math.max(6.5, splitVal.length * 4);
+      const splitVal = pdSplitValues[i];
+      for (let j = 0; j < splitVal.length; j++) {
+        doc.text(splitVal[j], 142, yOffsetPd + (j * 5.5));
+        doc.setDrawColor(200, 200, 200);
+        doc.setLineWidth(0.2);
+        doc.line(142, yOffsetPd + (j * 5.5) + 1.5, 198, yOffsetPd + (j * 5.5) + 1.5);
+      }
+      yOffsetPd += Math.max(7, splitVal.length * 5.5);
     }
 
     // --- TABLE ---
     const tableBody = [];
-    const maxRowsData = Math.max(formData.shootdate.length, formData.extrasheet.length, formData.conveyance.length, formData.rateperday.length, formData.amount.length);
+    const maxRowsData = Math.max(10, formData.shootdate.length, formData.extrasheet.length, formData.conveyance.length, formData.rateperday.length, formData.amount.length);
     for(let i=0; i < maxRowsData; i++) {
       tableBody.push([
         formData.shootdate[i] || '',
@@ -270,7 +346,7 @@ export default function BillGenForm() {
     }
 
     autoTable(doc, {
-      startY: 135,
+      startY: boxStartY + boxHeight + 5,
       head: [['DATE', 'DESCRIPTION\n(Camera Department)', 'POSITION', 'NO. OF\nDAYS / SHIFTS', 'RATE PER\nDAY (Rs)', 'AMOUNT\n(Rs)']],
       body: tableBody,
       theme: 'grid',
@@ -351,10 +427,15 @@ export default function BillGenForm() {
 
     // Bank Details & Signature
     doc.setDrawColor(...goldColor);
+    doc.setLineWidth(0.4);
     doc.roundedRect(10, finalY, 95, 25, 2, 2, "S");
+
     doc.setFillColor(15, 15, 15);
-    doc.triangle(10, finalY - 2, 10, finalY + 4, 40, finalY + 4, "F");
-    doc.triangle(10, finalY - 2, 40, finalY + 4, 45, finalY - 2, "F");
+    doc.setDrawColor(15, 15, 15);
+    doc.setLineWidth(0.5);
+    doc.triangle(10, finalY - 2, 10, finalY + 4, 40, finalY + 4, "FD");
+    doc.triangle(10, finalY - 2, 40, finalY + 4, 45, finalY - 2, "FD");
+
     doc.setTextColor(255, 255, 255);
     doc.setFont(undefined, "bold");
     doc.text("BANK DETAILS", 14, finalY + 2);
@@ -362,16 +443,21 @@ export default function BillGenForm() {
     doc.setTextColor(0, 0, 0);
     doc.setFontSize(8);
     doc.setFont(undefined, "normal");
-    doc.text("Account Name  : " + (companyInfo?.accountName || "RADHESHYAM GUPTA"), 12, finalY + 9);
-    doc.text("Account No.     : " + (companyInfo?.accountNo || "XXXXXXXXXXXX"), 12, finalY + 13);
-    doc.text("Bank Name       : " + (companyInfo?.bankName || ""), 12, finalY + 17);
-    doc.text("Branch             : " + (companyInfo?.branch || ""), 12, finalY + 21);
-    doc.text("IFSC Code        : " + (companyInfo?.ifscCode || ""), 12, finalY + 25);
+    doc.text("Account Name  : " + (companyInfo?.accountName || "RADHESHYAM GUPTA"), 12, finalY + 8);
+    doc.text("Account No.     : " + (companyInfo?.accountNo || "XXXXXXXXXXXX"), 12, finalY + 12);
+    doc.text("Bank Name       : " + (companyInfo?.bankName || ""), 12, finalY + 16);
+    doc.text("Branch             : " + (companyInfo?.branch || ""), 12, finalY + 20);
+    doc.text("IFSC Code        : " + (companyInfo?.ifscCode || ""), 12, finalY + 24);
 
+    doc.setDrawColor(...goldColor);
+    doc.setLineWidth(0.4);
     doc.roundedRect(115, finalY, 85, 25, 2, 2, "S");
+    
     doc.setFillColor(15, 15, 15);
-    doc.triangle(115, finalY - 2, 115, finalY + 4, 165, finalY + 4, "F");
-    doc.triangle(115, finalY - 2, 165, finalY + 4, 170, finalY - 2, "F");
+    doc.setDrawColor(15, 15, 15);
+    doc.setLineWidth(0.5);
+    doc.triangle(115, finalY - 2, 115, finalY + 4, 165, finalY + 4, "FD");
+    doc.triangle(115, finalY - 2, 165, finalY + 4, 170, finalY - 2, "FD");
     doc.setTextColor(255, 255, 255);
     doc.setFont(undefined, "bold");
     doc.text("AUTHORISED SIGNATURE", 120, finalY + 2);
@@ -597,13 +683,22 @@ Pan No.: ${companyInfo?.panNo || "DA***3*L"} `;
                     <span className="label-text font-medium">{label}</span>
                   </label>
                   {formData[name].map((val, idx) => (
-                    <input
-                      key={idx}
-                      type="text"
-                      className="input input-bordered w-full mb-2"
-                      value={val}
-                      onChange={(e) => handleArrayChange(e, name, idx)}
-                    />
+                    <div key={idx} className="flex gap-2 mb-2 items-center">
+                      <input
+                        type={name === "shootdate" ? "date" : "text"}
+                        className="input input-bordered w-full"
+                        value={val}
+                        onChange={(e) => handleArrayChange(e, name, idx)}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveField(name, idx)}
+                        className="btn btn-error btn-square btn-sm flex-shrink-0 text-white"
+                        title="Delete"
+                      >
+                        🗑️
+                      </button>
+                    </div>
                   ))}
                   <button
                     type="button"

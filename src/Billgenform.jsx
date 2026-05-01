@@ -3,6 +3,7 @@ import jsPDF from "jspdf";
 import { db } from "./firebase";
 import { doc, getDoc, updateDoc, collection, getDocs, query, where } from "firebase/firestore";
 import autoTable from "jspdf-autotable";
+import { Trash2 } from "lucide-react";
 
 // Utility: Convert number to words (Indian numbering system)
 function numberToWords(num) {
@@ -26,6 +27,23 @@ function numberToWords(num) {
   return str.trim() + ' only';
 }
 
+function getBase64ImageFromUrl(imageUrl) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.setAttribute("crossOrigin", "anonymous");
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, 0, 0);
+      resolve(canvas.toDataURL("image/png"));
+    };
+    img.onerror = reject;
+    img.src = imageUrl;
+  });
+}
+
 export default function BillGenForm() {
   const [formData, setFormData] = useState({
     billto: "",
@@ -43,11 +61,28 @@ export default function BillGenForm() {
     amount: [""],
   });
   const [signatureType, setSignatureType] = useState("text");
+  const [pdfDesign, setPdfDesign] = useState("current");
   const [companyInfo, setCompanyInfo] = useState(null);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [pdfUrl, setPdfUrl] = useState("");
+  const [lenseBase64, setLenseBase64] = useState(null);
+  const [logoBase64, setLogoBase64] = useState(null);
 
   useEffect(() => {
+    const loadImages = async () => {
+      try {
+        const lenseUrl = new URL('./assets/lense.png', import.meta.url).href;
+        const logoUrl = new URL('./assets/logotheme.png', import.meta.url).href;
+        const l64 = await getBase64ImageFromUrl(lenseUrl);
+        const logo64 = await getBase64ImageFromUrl(logoUrl);
+        setLenseBase64(l64);
+        setLogoBase64(logo64);
+      } catch (e) {
+        console.error("Failed to load images", e);
+      }
+    };
+    loadImages();
+
     const fetchCompanyInfo = async () => {
       const uid = localStorage.getItem("uid");
       if (!uid) return;
@@ -86,6 +121,22 @@ export default function BillGenForm() {
     setFormData({ ...formData, [field]: [...formData[field], ""] });
   };
 
+  const handleRemoveField = (field, index) => {
+    const updated = [...formData[field]];
+    updated.splice(index, 1);
+    const newData = { ...formData, [field]: updated };
+
+    if (field === "amount") {
+      const total = updated.reduce((sum, val) => sum + (parseFloat(val.trim()) || 0), 0);
+      newData.totalamount = total.toFixed(2);
+      const totalInt = Math.floor(total);
+      const totalDecimal = Math.round((total - totalInt) * 100);
+      newData.amountinword = numberToWords(totalInt) + (totalDecimal ? ` and ${totalDecimal}/100` : '') + ' only';
+    }
+
+    setFormData(newData);
+  };
+
   function splitTextByLength(text, maxLength) {
     const words = text.split(' ');
     const lines = [];
@@ -104,7 +155,337 @@ export default function BillGenForm() {
     return lines;
   }
 
+  const generateNewPDF = () => {
+    const doc = new jsPDF();
+    const goldColor = [218, 165, 32];
+
+    // --- TOP HEADER ---
+    doc.setFillColor(15, 15, 15);
+    doc.setDrawColor(15, 15, 15);
+    doc.setLineWidth(0.5);
+    doc.triangle(0, 0, 0, 65, 120, 65, "FD");
+    doc.triangle(0, 0, 120, 65, 140, 0, "FD");
+
+    doc.setFillColor(...goldColor);
+    doc.setDrawColor(...goldColor);
+    doc.triangle(140, 0, 120, 65, 123, 65, "FD");
+    doc.triangle(140, 0, 143, 0, 123, 65, "FD");
+
+    if (lenseBase64) {
+      doc.addImage(lenseBase64, "PNG", -10, -5, 60, 60);
+    }
+
+    let textStartX = 50;
+    if (logoBase64) {
+      // Draw the logo icon on the left
+      doc.addImage(logoBase64, "PNG", 50, 7, 18, 18);
+      textStartX = 72; // Shift text to the right of the logo
+    }
+
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(16);
+    doc.setFont(undefined, "bold");
+    doc.text((companyInfo?.companyName || "RADHESHYAM GUPTA").toUpperCase(), textStartX, 15);
+
+    doc.setTextColor(...goldColor);
+    doc.setFontSize(10);
+    doc.text("CAMERA DEPARTMENT", textStartX, 22);
+
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(8);
+    doc.setFont(undefined, "normal");
+    const address = companyInfo?.address || "Flat No. 411, Shree Sai Shraddha Chs. Ltd., Siddhart L.T. Road No. 4, Mumbai, Maharashtra - 400104";
+    const splitAddress = doc.splitTextToSize(address, 65);
+    doc.text(splitAddress, 50, 32);
+
+    let contactStartY = 32 + (splitAddress.length * 4) + 4;
+    if (contactStartY < 48) contactStartY = 48;
+
+    doc.setTextColor(...goldColor);
+    doc.text(companyInfo?.companyEmail || "radheshyamgupta@gmail.com", 50, contactStartY);
+    doc.text(companyInfo?.contactNumber || "7XXXXXXXXX", 50, contactStartY + 6);
+
+    // Right Side Header
+    doc.setTextColor(0, 0, 0);
+    doc.setFontSize(32);
+    doc.setFont(undefined, "bold");
+    doc.text("INVOICE", 145, 25);
+
+    doc.setFontSize(8);
+    let rightY = 38;
+
+    doc.setFont(undefined, "bold");
+    doc.text("INVOICE NO.", 130, rightY); doc.text(":", 155, rightY);
+    doc.setFont(undefined, "normal"); doc.text(formData.billno || "", 160, rightY);
+    doc.setDrawColor(200, 200, 200); doc.line(160, rightY + 1.5, 200, rightY + 1.5);
+
+    rightY += 6;
+    doc.setFont(undefined, "bold");
+    doc.text("BILL DATE", 130, rightY); doc.text(":", 155, rightY);
+    doc.setFont(undefined, "normal"); doc.text(formData.billdate || "", 160, rightY);
+    doc.line(160, rightY + 1.5, 200, rightY + 1.5);
+
+    rightY += 6;
+    doc.setFont(undefined, "bold");
+    doc.text("PROJECT", 130, rightY); doc.text(":", 155, rightY);
+    doc.setFont(undefined, "normal");
+    const splitProject = doc.splitTextToSize(formData.projectname || "", 40);
+    for (let j = 0; j < splitProject.length; j++) {
+      doc.text(splitProject[j], 160, rightY + (j * 5));
+      doc.line(160, rightY + (j * 5) + 1.5, 200, rightY + (j * 5) + 1.5);
+    }
+
+    rightY += Math.max(6, splitProject.length * 5 + 1);
+    doc.setFont(undefined, "bold");
+    doc.text("PO / REF NO.", 130, rightY); doc.text(":", 155, rightY);
+    doc.setFont(undefined, "normal");
+    const splitCampaign = doc.splitTextToSize(formData.campaign || "", 40);
+    for (let j = 0; j < splitCampaign.length; j++) {
+      doc.text(splitCampaign[j], 160, rightY + (j * 5));
+      doc.line(160, rightY + (j * 5) + 1.5, 200, rightY + (j * 5) + 1.5);
+    }
+
+    let boxStartY = Math.max(70, rightY + (splitCampaign.length * 5) + 5, contactStartY + 15);
+
+    // --- MID SECTION (Boxes) ---
+    doc.setDrawColor(...goldColor);
+    doc.setLineWidth(0.4);
+
+    doc.setFontSize(8);
+    doc.setFont(undefined, "normal");
+    const btLabels = ["Production House / Client :", "Address :", "Contact Person :", "Mobile / Phone :", "Email :", "GSTIN / UIN :"];
+    const btValues = [formData.billto, formData.address || "", "", "", "", formData.gst || ""];
+    const btSplitValues = btValues.map(v => doc.splitTextToSize(v || "", 50));
+    let btTotalHeight = 0;
+    btSplitValues.forEach(splitVal => {
+      btTotalHeight += Math.max(7, splitVal.length * 5.5);
+    });
+
+    const pdLabels = ["Project Name :", "Shoot Location :", "Production Head :", "Line Producer :", "Director :", "DOP :", "Equipment Package :"];
+    const pdValues = [formData.projectname, "", "", "", "", "", ""];
+    const pdSplitValues = pdValues.map(v => doc.splitTextToSize(v || "", 50));
+    let pdTotalHeight = 0;
+    pdSplitValues.forEach(splitVal => {
+      pdTotalHeight += Math.max(7, splitVal.length * 5.5);
+    });
+
+    const boxHeight = Math.max(60, btTotalHeight + 15, pdTotalHeight + 15);
+
+    // BILL TO
+    doc.setDrawColor(...goldColor);
+    doc.setLineWidth(0.4);
+    doc.roundedRect(10, boxStartY, 92, boxHeight, 3, 3, "S");
+
+    doc.setFillColor(...goldColor);
+    doc.setDrawColor(...goldColor);
+    doc.setLineWidth(0.5);
+    doc.triangle(10, boxStartY - 4, 10, boxStartY + 4, 45, boxStartY + 4, "FD");
+    doc.triangle(10, boxStartY - 4, 45, boxStartY + 4, 50, boxStartY - 4, "FD");
+    doc.setTextColor(0, 0, 0);
+    doc.setFontSize(9);
+    doc.setFont(undefined, "bold");
+    doc.text("BILL TO", 18, boxStartY + 2);
+
+    doc.setFontSize(8);
+    doc.setFont(undefined, "normal");
+    let yOffset = boxStartY + 12;
+    for (let i = 0; i < btLabels.length; i++) {
+      doc.text(btLabels[i], 12, yOffset);
+      const splitVal = btSplitValues[i];
+      for (let j = 0; j < splitVal.length; j++) {
+        doc.text(splitVal[j], 48, yOffset + (j * 5.5));
+        doc.setDrawColor(200, 200, 200);
+        doc.setLineWidth(0.2);
+        doc.line(48, yOffset + (j * 5.5) + 1.5, 98, yOffset + (j * 5.5) + 1.5);
+      }
+      yOffset += Math.max(7, splitVal.length * 5.5);
+    }
+
+    // PROJECT DETAILS
+    doc.setDrawColor(...goldColor);
+    doc.setLineWidth(0.4);
+    doc.roundedRect(108, boxStartY, 92, boxHeight, 3, 3, "S");
+
+    doc.setFillColor(15, 15, 15);
+    doc.setDrawColor(15, 15, 15);
+    doc.setLineWidth(0.5);
+    doc.triangle(108, boxStartY - 4, 108, boxStartY + 4, 155, boxStartY + 4, "FD");
+    doc.triangle(108, boxStartY - 4, 155, boxStartY + 4, 160, boxStartY - 4, "FD");
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(9);
+    doc.setFont(undefined, "bold");
+    doc.text("PROJECT DETAILS", 116, boxStartY + 2);
+
+    doc.setTextColor(0, 0, 0);
+    doc.setFontSize(8);
+    doc.setFont(undefined, "normal");
+    let yOffsetPd = boxStartY + 12;
+    for (let i = 0; i < pdLabels.length; i++) {
+      doc.text(pdLabels[i], 112, yOffsetPd);
+      const splitVal = pdSplitValues[i];
+      for (let j = 0; j < splitVal.length; j++) {
+        doc.text(splitVal[j], 142, yOffsetPd + (j * 5.5));
+        doc.setDrawColor(200, 200, 200);
+        doc.setLineWidth(0.2);
+        doc.line(142, yOffsetPd + (j * 5.5) + 1.5, 198, yOffsetPd + (j * 5.5) + 1.5);
+      }
+      yOffsetPd += Math.max(7, splitVal.length * 5.5);
+    }
+
+    // --- TABLE ---
+    const tableBody = [];
+    const maxRowsData = Math.max(10, formData.shootdate.length, formData.extrasheet.length, formData.conveyance.length, formData.rateperday.length, formData.amount.length);
+    for (let i = 0; i < maxRowsData; i++) {
+      tableBody.push([
+        formData.shootdate[i] || '',
+        formData.extrasheet[i] || '',
+        formData.conveyance[i] || '',
+        '', // days
+        formData.rateperday[i] || '',
+        formData.amount[i] || ''
+      ]);
+    }
+
+    autoTable(doc, {
+      startY: boxStartY + boxHeight + 5,
+      head: [['DATE', 'DESCRIPTION\n(Camera Department)', 'POSITION', 'NO. OF\nDAYS / SHIFTS', 'RATE PER\nDAY (Rs)', 'AMOUNT\n(Rs)']],
+      body: tableBody,
+      theme: 'grid',
+      styles: {
+        fontSize: 8,
+        halign: 'center',
+        valign: 'middle',
+        lineColor: [220, 220, 220],
+        lineWidth: 0.1
+      },
+      headStyles: {
+        fillColor: [30, 20, 15],
+        textColor: goldColor,
+        lineColor: goldColor,
+        lineWidth: 0.2
+      },
+      columnStyles: {
+        1: { halign: 'left', cellWidth: 55 }
+      },
+      didDrawPage: function (data) {
+        if (lenseBase64) {
+          doc.setGState(new doc.GState({ opacity: 0.15 }));
+          doc.addImage(lenseBase64, "PNG", 55, 150, 100, 100);
+          doc.setGState(new doc.GState({ opacity: 1 }));
+        }
+      }
+    });
+
+    let finalY = doc.lastAutoTable.finalY + 5;
+
+    // --- FOOTER SECTION ---
+    // Notes Box
+    doc.setTextColor(...goldColor);
+    doc.setFontSize(8);
+    doc.setFont(undefined, "bold");
+    doc.text("NOTES / REMARKS", 12, finalY);
+    doc.setDrawColor(...goldColor);
+    doc.line(42, finalY, 60, finalY);
+
+    doc.setDrawColor(200, 200, 200);
+    doc.roundedRect(10, finalY - 5, 120, 20, 2, 2, "S");
+    doc.setTextColor(0, 0, 0);
+    doc.setFont(undefined, "normal");
+    doc.text("", 12, finalY + 5);
+
+    // Totals Box
+    doc.setDrawColor(...goldColor);
+    doc.rect(135, finalY - 5, 65, 20, "S");
+
+    doc.line(135, finalY + 2, 200, finalY + 2);
+    doc.line(135, finalY + 9, 200, finalY + 9);
+    doc.line(175, finalY - 5, 175, finalY + 15);
+
+    doc.setFont(undefined, "bold");
+    doc.text("SUB TOTAL", 137, finalY);
+    doc.text("Rs " + (formData.totalamount || "0"), 177, finalY);
+
+    doc.text("GST @ ___ %", 137, finalY + 7);
+    doc.text("Rs 0.00", 177, finalY + 7);
+
+    doc.setFillColor(180, 130, 50); // Gold-ish background
+    doc.rect(135, finalY + 9, 65, 6, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.text("TOTAL AMOUNT", 137, finalY + 13.5);
+    doc.text("Rs " + (formData.totalamount || "0"), 177, finalY + 13.5);
+
+    finalY += 22;
+
+    // Words
+    doc.setTextColor(0, 0, 0);
+    doc.text("Amount In Words :", 10, finalY);
+    doc.setFont(undefined, "normal");
+    doc.text(formData.amountinword || "", 40, finalY);
+    doc.setDrawColor(150, 150, 150);
+    doc.line(40, finalY + 1, 200, finalY + 1);
+
+    finalY += 8;
+
+    // Bank Details & Signature
+    doc.setDrawColor(...goldColor);
+    doc.setLineWidth(0.4);
+    doc.roundedRect(10, finalY, 95, 25, 2, 2, "S");
+
+    doc.setFillColor(15, 15, 15);
+    doc.setDrawColor(15, 15, 15);
+    doc.setLineWidth(0.5);
+    doc.triangle(10, finalY - 2, 10, finalY + 4, 40, finalY + 4, "FD");
+    doc.triangle(10, finalY - 2, 40, finalY + 4, 45, finalY - 2, "FD");
+
+    doc.setTextColor(255, 255, 255);
+    doc.setFont(undefined, "bold");
+    doc.text("BANK DETAILS", 14, finalY + 2);
+
+    doc.setTextColor(0, 0, 0);
+    doc.setFontSize(8);
+    doc.setFont(undefined, "normal");
+    doc.text("Account Name  : " + (companyInfo?.accountName || "RADHESHYAM GUPTA"), 12, finalY + 8);
+    doc.text("Account No.     : " + (companyInfo?.accountNo || "XXXXXXXXXXXX"), 12, finalY + 12);
+    doc.text("Bank Name       : " + (companyInfo?.bankName || ""), 12, finalY + 16);
+    doc.text("Branch             : " + (companyInfo?.branch || ""), 12, finalY + 20);
+    doc.text("IFSC Code        : " + (companyInfo?.ifscCode || ""), 12, finalY + 24);
+
+    doc.setDrawColor(...goldColor);
+    doc.setLineWidth(0.4);
+    doc.roundedRect(115, finalY, 85, 25, 2, 2, "S");
+
+    doc.setFillColor(15, 15, 15);
+    doc.setDrawColor(15, 15, 15);
+    doc.setLineWidth(0.5);
+    doc.triangle(115, finalY - 2, 115, finalY + 4, 165, finalY + 4, "FD");
+    doc.triangle(115, finalY - 2, 165, finalY + 4, 170, finalY - 2, "FD");
+    doc.setTextColor(255, 255, 255);
+    doc.setFont(undefined, "bold");
+    doc.text("AUTHORISED SIGNATURE", 120, finalY + 2);
+
+    doc.setDrawColor(0, 0, 0);
+    doc.line(125, finalY + 19, 195, finalY + 19);
+    doc.setTextColor(0, 0, 0);
+    doc.setFont(undefined, "normal");
+    doc.text("(Radheshyam Gupta)", 160, finalY + 23, { align: "center" });
+
+    // Bottom Bar
+    doc.setFillColor(15, 15, 15);
+    doc.rect(0, 285, 210, 12, "F");
+    doc.setTextColor(...goldColor);
+    doc.setFontSize(9);
+    doc.setFont(undefined, "bold");
+    doc.text("THANK YOU FOR YOUR BUSINESS!", 105, 292, { align: "center" });
+    doc.setDrawColor(...goldColor);
+    doc.line(30, 291, 70, 291);
+    doc.line(140, 291, 180, 291);
+
+    return doc;
+  };
+
   const generatePDF = () => {
+    if (pdfDesign === "new") return generateNewPDF();
+
     const doc = new jsPDF();
     doc.setFont("times");
     doc.setFontSize(34);
@@ -303,13 +684,22 @@ Pan No.: ${companyInfo?.panNo || "DA***3*L"} `;
                     <span className="label-text font-medium">{label}</span>
                   </label>
                   {formData[name].map((val, idx) => (
-                    <input
-                      key={idx}
-                      type="text"
-                      className="input input-bordered w-full mb-2"
-                      value={val}
-                      onChange={(e) => handleArrayChange(e, name, idx)}
-                    />
+                    <div key={idx} className="flex gap-2 mb-2 items-center">
+                      <input
+                        type={name === "shootdate" ? "date" : "text"}
+                        className="input input-bordered w-full"
+                        value={val}
+                        onChange={(e) => handleArrayChange(e, name, idx)}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveField(name, idx)}
+                        className="btn btn-error btn-square btn-sm flex-shrink-0 text-white"
+                        title="Delete"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   ))}
                   <button
                     type="button"
@@ -348,6 +738,35 @@ Pan No.: ${companyInfo?.panNo || "DA***3*L"} `;
                   className="radio"
                 />
                 Digital Signature
+              </label>
+            </div>
+          </div>
+
+          {/* PDF Template */}
+          <div className="border p-4 rounded-lg">
+            <h3 className="text-xl font-semibold mb-4 border-b pb-2">PDF Design Template</h3>
+            <div className="flex gap-6">
+              <label className="flex items-center gap-2">
+                <input
+                  type="radio"
+                  name="pdfDesign"
+                  value="current"
+                  checked={pdfDesign === "current"}
+                  onChange={(e) => setPdfDesign(e.target.value)}
+                  className="radio"
+                />
+                Current Design
+              </label>
+              <label className="flex items-center gap-2">
+                <input
+                  type="radio"
+                  name="pdfDesign"
+                  value="new"
+                  checked={pdfDesign === "new"}
+                  onChange={(e) => setPdfDesign(e.target.value)}
+                  className="radio"
+                />
+                New Premium Design
               </label>
             </div>
           </div>
