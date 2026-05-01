@@ -72,7 +72,7 @@ export default function BillGenForm() {
     const loadImages = async () => {
       try {
         const lenseUrl = new URL('./assets/lense.png', import.meta.url).href;
-        const logoUrl = new URL('./assets/logotheme.png', import.meta.url).href;
+        const logoUrl = new URL('./assets/logothemevg.png', import.meta.url).href;
         const l64 = await getBase64ImageFromUrl(lenseUrl);
         const logo64 = await getBase64ImageFromUrl(logoUrl);
         setLenseBase64(l64);
@@ -388,7 +388,7 @@ const resizeBase64Image = (base64, maxWidth = 300) => {
       didDrawPage: function (data) {
         if (lenseBase64) {
           doc.setGState(new doc.GState({ opacity: 0.15 }));
-          doc.addImage(lenseBase64, "PNG", 55, 150, 100, 100);
+       doc.addImage(logoBase64, "PNG", 75, 160, 50, 50);
           doc.setGState(new doc.GState({ opacity: 1 }));
         }
       }
