@@ -61,6 +61,31 @@
   }
 }
 
+/* Horizontal design gallery: finger-swipe on touch, thin scrollbar on desktop. */
+.design-strip {
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none; /* hide scrollbar on mobile — swipe is the affordance */
+}
+.design-strip::-webkit-scrollbar {
+  display: none;
+}
+@media (min-width: 1024px) {
+  .design-strip {
+    scrollbar-width: thin;
+  }
+  .design-strip::-webkit-scrollbar {
+    display: block;
+    height: 6px;
+  }
+  .design-strip::-webkit-scrollbar-thumb {
+    background: var(--color-base-300);
+    border-radius: 3px;
+  }
+  .design-strip::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+
 /* iOS Safari auto-zooms into any focused field whose font-size is below 16px.
    Keep every form control at 16px on touch / small screens to prevent that.
    (Unlayered on purpose so it outranks the layered daisyUI size variants.) */

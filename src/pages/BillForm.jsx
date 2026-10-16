@@ -20,6 +20,7 @@ import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import AutocompleteInput from "../components/AutocompleteInput";
 import PdfPreviewModal from "../components/PdfPreviewModal";
+import DesignThumb from "../components/DesignThumb";
 import {
   listBills,
   saveBill,
@@ -30,7 +31,7 @@ import {
   bumpDownloadCount,
   suggestNextBillNo,
 } from "../lib/billsService";
-import { generateInvoicePdf, loadPdfAssets, invoiceFileName } from "../lib/pdf";
+import { generateInvoicePdf, loadPdfAssets, invoiceFileName, DESIGNS } from "../lib/pdf";
 import { amountInWords } from "../lib/numberToWords";
 import { formatINR, formatDateHuman, todayISO } from "../lib/format";
 import { track } from "../firebase";
@@ -348,9 +349,9 @@ export default function BillForm() {
         </div>
       )}
 
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
         {/* ---- Left column: the form ---- */}
-        <div className="space-y-5">
+        <div className="min-w-0 space-y-5">
           <SectionCard icon={Users} title="Client & Project" subtitle="Pick a saved client or add a new one">
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="sm:col-span-2">
@@ -571,42 +572,58 @@ export default function BillForm() {
             </button>
           </SectionCard>
 
-          {/* Options */}
-          <div className="grid gap-5 sm:grid-cols-2">
-            <SectionCard icon={PenLine} title="Signature">
-              <div className="flex flex-col gap-2">
-                <OptionPill
-                  active={signatureType === "text"}
-                  onClick={() => setSignatureType("text")}
-                  title="Name as text"
-                  desc={companyInfo?.signatureName ? `"${companyInfo.signatureName}"` : "Uses the signature name from your profile"}
-                />
-                <OptionPill
-                  active={signatureType === "image"}
-                  onClick={() => setSignatureType("image")}
-                  title="Drawn signature"
-                  desc={companyInfo?.digitalSignature ? "Your saved digital signature" : "No signature drawn yet — add one in Company"}
-                />
-              </div>
-            </SectionCard>
+          {/* PDF design gallery */}
+          <SectionCard
+            icon={Palette}
+            title="PDF Design"
+            subtitle="Swipe left–right to browse, tap a design to select it"
+          >
+            <div className="design-strip -mx-1 flex w-full max-w-full snap-x gap-3 overflow-x-auto overscroll-x-contain px-1 pb-2">
+              {DESIGNS.map((d) => {
+                const active = pdfDesign === d.id;
+                return (
+                  <button
+                    key={d.id}
+                    type="button"
+                    onClick={() => setPdfDesign(d.id)}
+                    className={`shrink-0 snap-start rounded-xl border p-2 text-left transition-colors ${
+                      active
+                        ? "border-primary bg-primary/5 ring-2 ring-primary/50"
+                        : "border-base-300 hover:border-base-content/30"
+                    }`}
+                  >
+                    <DesignThumb design={d} />
+                    <span className="mt-1.5 flex w-24 items-center justify-between gap-1">
+                      <span className="truncate text-[11px] font-semibold">{d.name}</span>
+                      {active && <Check className="h-3.5 w-3.5 shrink-0 text-primary" />}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <p className="mt-1 text-xs text-base-content/45">
+              Selected: <b>{DESIGNS.find((d) => d.id === pdfDesign)?.name || "Classic"}</b> — tap
+              Preview to see it filled with your data.
+            </p>
+          </SectionCard>
 
-            <SectionCard icon={Palette} title="PDF Design">
-              <div className="flex flex-col gap-2">
-                <OptionPill
-                  active={pdfDesign === "current"}
-                  onClick={() => setPdfDesign("current")}
-                  title="Classic"
-                  desc="Clean boxed layout, black & white"
-                />
-                <OptionPill
-                  active={pdfDesign === "new"}
-                  onClick={() => setPdfDesign("new")}
-                  title="Premium"
-                  desc="Dark header with gold accents"
-                />
-              </div>
-            </SectionCard>
-          </div>
+          {/* Signature */}
+          <SectionCard icon={PenLine} title="Signature">
+            <div className="grid gap-2 sm:grid-cols-2">
+              <OptionPill
+                active={signatureType === "text"}
+                onClick={() => setSignatureType("text")}
+                title="Name as text"
+                desc={companyInfo?.signatureName ? `"${companyInfo.signatureName}"` : "Uses the signature name from your profile"}
+              />
+              <OptionPill
+                active={signatureType === "image"}
+                onClick={() => setSignatureType("image")}
+                title="Drawn signature"
+                desc={companyInfo?.digitalSignature ? "Your saved digital signature" : "No signature drawn yet — add one in Company"}
+              />
+            </div>
+          </SectionCard>
         </div>
 
         {/* ---- Right column: sticky summary (desktop) ---- */}

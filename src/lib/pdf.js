@@ -596,6 +596,473 @@ Pan No.: ${companyInfo?.panNo || "DA***3*L"} `;
   return doc;
 }
 
+// ---------------------------------------------------------------------------
+// 10 "company standard" designs — one configurable engine, themed per design.
+// The two original designs ("current" classic & "new" premium) stay untouched.
+// ---------------------------------------------------------------------------
+const STANDARD_THEMES = {
+  mono:      { name: "Minimal Mono",   font: "helvetica", header: "minimal", table: "minimal", accent: [17, 17, 17],   soft: [240, 240, 240] },
+  corporate: { name: "Corporate Navy", font: "helvetica", header: "band",    table: "grid",    accent: [21, 44, 91],   soft: [228, 234, 246] },
+  teal:      { name: "Teal Sidebar",   font: "helvetica", header: "side",    table: "striped", accent: [11, 110, 114], soft: [222, 240, 239] },
+  serif:     { name: "Classic Serif",  font: "times",     header: "center",  table: "grid",    accent: [62, 47, 32],   soft: [242, 238, 230] },
+  boldband:  { name: "Bold Amber",     font: "helvetica", header: "band",    table: "striped", accent: [22, 22, 22],   soft: [255, 236, 179], accent2: [255, 179, 0] },
+  graypanel: { name: "Soft Gray",      font: "helvetica", header: "split",   table: "striped", accent: [88, 90, 96],   soft: [238, 239, 241] },
+  emerald:   { name: "Emerald",        font: "helvetica", header: "split",   table: "grid",    accent: [13, 120, 79],  soft: [223, 241, 232] },
+  royal:     { name: "Royal Purple",   font: "helvetica", header: "band",    table: "striped", accent: [76, 40, 130],  soft: [237, 231, 246] },
+  terra:     { name: "Terracotta",     font: "times",     header: "split",   table: "grid",    accent: [169, 78, 47],  soft: [250, 235, 226] },
+  slate:     { name: "Slate Bold",     font: "helvetica", header: "minimal", table: "grid",    accent: [40, 48, 60],   soft: [226, 230, 236], accent2: [235, 87, 56] },
+};
+
+/** All selectable designs, in display order. `thumb` drives the visual picker. */
+export const DESIGNS = [
+  { id: "current", name: "Classic",      thumb: { variant: "classic", accent: "#111111", soft: "#e8e8e8", pop: "#111111" } },
+  { id: "new",     name: "Premium Gold", thumb: { variant: "gold",    accent: "#141414", soft: "#f3ead0", pop: "#DAA520" } },
+  ...Object.entries(STANDARD_THEMES).map(([id, t]) => ({
+    id,
+    name: t.name,
+    thumb: {
+      variant: t.header,
+      accent: `rgb(${t.accent.join(",")})`,
+      soft: `rgb(${t.soft.join(",")})`,
+      pop: `rgb(${(t.accent2 || t.accent).join(",")})`,
+    },
+  })),
+];
+
+function money(v) {
+  const n = parseFloat(v);
+  return "Rs " + (isFinite(n) ? n : 0).toLocaleString("en-IN", { minimumFractionDigits: 2 });
+}
+
+function generateStandardPDF(formData, companyInfo, signatureType, theme) {
+  const doc = new jsPDF();
+  const accent = theme.accent;
+  const accent2 = theme.accent2 || theme.accent;
+  const M = theme.header === "side" ? 20 : 14; // left margin
+  const R = 196; // right edge
+  const dark = [30, 32, 36];
+  const gray = [110, 112, 118];
+  const line = [216, 218, 222];
+
+  doc.setFont(theme.font, "normal");
+
+  const compName = companyInfo?.companyName || "Your Company Name";
+  doc.setFontSize(9);
+  const compAddrLines = [];
+  if (companyInfo?.address) compAddrLines.push(...doc.splitTextToSize(companyInfo.address, 86));
+  const cityLine = [companyInfo?.district, companyInfo?.state, companyInfo?.pincode]
+    .filter(Boolean)
+    .join(", ");
+  if (cityLine) compAddrLines.push(cityLine);
+  const contactLine = [
+    companyInfo?.contactNumber ? `Phone: ${companyInfo.contactNumber}` : null,
+    companyInfo?.companyEmail ? `Email: ${companyInfo.companyEmail}` : null,
+  ]
+    .filter(Boolean)
+    .join("   ");
+  const taxLine = [
+    companyInfo?.gstNo ? `GSTIN: ${companyInfo.gstNo}` : null,
+    companyInfo?.panNo ? `PAN: ${companyInfo.panNo}` : null,
+  ]
+    .filter(Boolean)
+    .join("   ");
+
+  const drawSideBar = () => {
+    doc.setFillColor(...accent);
+    doc.rect(0, 0, 10, 297, "F");
+  };
+
+  let y;
+
+  // ---------- Header ----------
+  if (theme.header === "band") {
+    doc.setFillColor(...accent);
+    doc.rect(0, 0, 210, 36, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(16);
+    doc.setFont(theme.font, "bold");
+    doc.text(compName.toUpperCase(), M, 14);
+    doc.setFontSize(8);
+    doc.setFont(theme.font, "normal");
+    // Wider wrap inside the band so the city/pincode line is never dropped.
+    const bandAddrSrc = [companyInfo?.address, cityLine].filter(Boolean).join(", ");
+    const bandAddr = bandAddrSrc ? doc.splitTextToSize(bandAddrSrc, 100).slice(0, 3) : [];
+    let hy = 20;
+    bandAddr.forEach((l) => {
+      doc.text(l, M, hy);
+      hy += 3.8;
+    });
+    if (contactLine) {
+      doc.text(contactLine, M, hy);
+      hy += 3.8;
+    }
+    if (taxLine) doc.text(taxLine, M, hy);
+    doc.setFontSize(26);
+    doc.setFont(theme.font, "bold");
+    if (theme.accent2) doc.setTextColor(...accent2);
+    doc.text("INVOICE", R, 17, { align: "right" });
+    if (theme.accent2) {
+      doc.setFillColor(...accent2);
+      doc.rect(0, 36, 210, 1.6, "F");
+    }
+    y = 46;
+  } else if (theme.header === "split" || theme.header === "side") {
+    if (theme.header === "side") drawSideBar();
+    doc.setTextColor(...accent);
+    doc.setFontSize(18);
+    doc.setFont(theme.font, "bold");
+    doc.text(compName, M, 17);
+    doc.setTextColor(...gray);
+    doc.setFontSize(8.5);
+    doc.setFont(theme.font, "normal");
+    let hy = 23;
+    compAddrLines.forEach((l) => {
+      doc.text(l, M, hy);
+      hy += 4;
+    });
+    if (contactLine) {
+      doc.text(contactLine, M, hy);
+      hy += 4;
+    }
+    if (taxLine) {
+      doc.text(taxLine, M, hy);
+      hy += 4;
+    }
+    doc.setTextColor(...accent);
+    doc.setFontSize(27);
+    doc.setFont(theme.font, "bold");
+    doc.text("INVOICE", R, 20, { align: "right" });
+    const headBottom = Math.max(hy, 27) + 2;
+    doc.setDrawColor(...accent);
+    doc.setLineWidth(0.9);
+    doc.line(M, headBottom, R, headBottom);
+    y = headBottom + 9;
+  } else if (theme.header === "center") {
+    doc.setTextColor(...accent);
+    doc.setFontSize(19);
+    doc.setFont(theme.font, "bold");
+    doc.text(compName.toUpperCase(), 105, 16, { align: "center" });
+    doc.setTextColor(...gray);
+    doc.setFontSize(9);
+    doc.setFont(theme.font, "normal");
+    let hy = 22;
+    compAddrLines.forEach((l) => {
+      doc.text(l, 105, hy, { align: "center" });
+      hy += 4;
+    });
+    if (contactLine) {
+      doc.text(contactLine, 105, hy, { align: "center" });
+      hy += 4;
+    }
+    if (taxLine) {
+      doc.text(taxLine, 105, hy, { align: "center" });
+      hy += 4;
+    }
+    hy += 1;
+    doc.setDrawColor(...accent);
+    doc.setLineWidth(0.8);
+    doc.line(M, hy, R, hy);
+    doc.setLineWidth(0.25);
+    doc.line(M, hy + 1.4, R, hy + 1.4);
+    hy += 9;
+    doc.setTextColor(...dark);
+    doc.setFontSize(14);
+    doc.setFont(theme.font, "bold");
+    doc.text("I N V O I C E", 105, hy, { align: "center" });
+    y = hy + 9;
+  } else {
+    // minimal
+    doc.setTextColor(...accent);
+    doc.setFontSize(30);
+    doc.setFont(theme.font, "bold");
+    if (theme.accent2) {
+      doc.setFillColor(...accent2);
+      doc.rect(M, 11, 4, 13, "F");
+      doc.text("INVOICE", M + 8, 22);
+    } else {
+      doc.text("INVOICE", M, 22);
+    }
+    doc.setTextColor(...dark);
+    doc.setFontSize(11);
+    doc.text(compName, R, 13, { align: "right" });
+    doc.setTextColor(...gray);
+    doc.setFontSize(8);
+    doc.setFont(theme.font, "normal");
+    let hy = 18;
+    compAddrLines.forEach((l) => {
+      doc.text(l, R, hy, { align: "right" });
+      hy += 3.8;
+    });
+    if (contactLine) {
+      doc.text(contactLine, R, hy, { align: "right" });
+      hy += 3.8;
+    }
+    if (taxLine) {
+      doc.text(taxLine, R, hy, { align: "right" });
+      hy += 3.8;
+    }
+    const lineY = Math.max(30, hy) + 3;
+    doc.setDrawColor(...line);
+    doc.setLineWidth(0.3);
+    doc.line(M, lineY, R, lineY);
+    y = lineY + 9;
+  }
+
+  // ---------- Bill To (left) + invoice meta (right) ----------
+  doc.setFontSize(9);
+  doc.setFont(theme.font, "bold");
+  doc.setTextColor(...accent);
+  doc.text("BILL TO", M, y);
+  let ly = y + 5.5;
+  doc.setTextColor(...dark);
+  doc.setFontSize(10.5);
+  const nameLines = doc.splitTextToSize(formData.billto || "—", 86);
+  doc.text(nameLines, M, ly);
+  ly += nameLines.length * 4.6 + 0.8;
+  doc.setFont(theme.font, "normal");
+  doc.setFontSize(8.5);
+  doc.setTextColor(...gray);
+  if (formData.address) {
+    const al = doc.splitTextToSize(formData.address, 86);
+    doc.text(al, M, ly);
+    ly += al.length * 3.9;
+  }
+  if (formData.gst) {
+    doc.text(`GSTIN: ${formData.gst}`, M, ly);
+    ly += 3.9;
+  }
+  if (formData.pan) {
+    doc.text(`PAN: ${formData.pan}`, M, ly);
+    ly += 3.9;
+  }
+
+  let ry = y;
+  const metaRows = [
+    ["Invoice No.", formData.billno || "—"],
+    ["Invoice Date", formatDateForPdf(formData.billdate) || "—"],
+  ];
+  if (formData.projectname) metaRows.push(["Project", formData.projectname]);
+  if (formData.campaign) metaRows.push(["PO / Ref", formData.campaign]);
+  doc.setFontSize(8.5);
+  metaRows.forEach(([label, value]) => {
+    doc.setFont(theme.font, "normal");
+    doc.setTextColor(...gray);
+    doc.text(label, 124, ry);
+    doc.setFont(theme.font, "bold");
+    doc.setTextColor(...dark);
+    const vl = doc.splitTextToSize(String(value), 46);
+    doc.text(vl, R, ry, { align: "right" });
+    ry += Math.max(5, vl.length * 4);
+  });
+
+  y = Math.max(ly, ry) + 5;
+
+  // ---------- Items table ----------
+  const maxRows = Math.max(
+    formData.shootdate.length,
+    formData.extrasheet.length,
+    formData.conveyance.length,
+    formData.rateperday.length,
+    formData.amount.length
+  );
+  const body = [];
+  for (let i = 0; i < maxRows; i++) {
+    const dateCell = [
+      formatDateForPdf(formData.shootdate[i]) || "",
+      (formData.shootlabel?.[i] || "").trim(),
+    ]
+      .filter(Boolean)
+      .join("\n");
+    const hasAny =
+      dateCell ||
+      formData.extrasheet[i] ||
+      formData.conveyance[i] ||
+      formData.rateperday[i] ||
+      formData.amount[i];
+    body.push([
+      hasAny ? String(i + 1) : "",
+      dateCell,
+      formData.extrasheet[i] || "",
+      formData.conveyance[i] || "",
+      formData.rateperday[i] || "",
+      formData.amount[i] || "",
+    ]);
+  }
+  // Pad to a full-looking table — but not for striped themes, where empty
+  // alternating stripes after the content would look like floating bars.
+  if (theme.table !== "striped") {
+    while (body.length < 8) body.push(["", "", "", "", "", ""]);
+  }
+
+  let tableTheme = "grid";
+  let headStyles = { fontStyle: "bold", halign: "center", fillColor: accent, textColor: [255, 255, 255] };
+  let alternateRowStyles = {};
+  let bodyStyles = {};
+  if (theme.table === "grid") {
+    headStyles = { ...headStyles, lineColor: accent, lineWidth: 0.1 };
+    bodyStyles = { lineColor: line, lineWidth: 0.15 };
+  } else if (theme.table === "striped") {
+    tableTheme = "striped";
+    alternateRowStyles = { fillColor: theme.soft };
+  } else {
+    tableTheme = "plain";
+    headStyles = { fontStyle: "bold", halign: "center", fillColor: [255, 255, 255], textColor: accent };
+  }
+
+  autoTable(doc, {
+    startY: y,
+    margin: { left: M, right: 14 },
+    head: [["#", "SHOOT DATE", "EXTRA SHIFT", "CONVEYANCE", "RATE / DAY", "AMOUNT (Rs)"]],
+    body,
+    theme: tableTheme,
+    styles: { font: theme.font, fontSize: 8.5, cellPadding: 2.6, halign: "center", valign: "middle", textColor: dark, ...bodyStyles },
+    headStyles,
+    alternateRowStyles,
+    columnStyles: {
+      0: { cellWidth: 10 },
+      1: { cellWidth: 36 },
+      5: { cellWidth: 40, fontStyle: "bold", halign: "right" },
+    },
+    didDrawCell: (data) => {
+      if (theme.table === "minimal") {
+        const bottom = data.cell.y + data.cell.height;
+        if (data.section === "head") {
+          doc.setDrawColor(...accent);
+          doc.setLineWidth(0.5);
+          doc.line(data.cell.x, bottom, data.cell.x + data.cell.width, bottom);
+        } else if (data.section === "body") {
+          doc.setDrawColor(...line);
+          doc.setLineWidth(0.15);
+          doc.line(data.cell.x, bottom, data.cell.x + data.cell.width, bottom);
+        }
+      }
+    },
+    didDrawPage: () => {
+      if (theme.header === "side") drawSideBar();
+    },
+  });
+  y = doc.lastAutoTable.finalY + 8;
+
+  const ensure = (need) => {
+    if (y + need > 280) {
+      doc.addPage();
+      if (theme.header === "side") drawSideBar();
+      y = 20;
+    }
+  };
+
+  // ---------- Totals (right) + amount in words (left) ----------
+  ensure(32);
+  const tTop = y;
+  const boxX = 126;
+  doc.setFontSize(9);
+  doc.setFont(theme.font, "normal");
+  doc.setTextColor(...gray);
+  doc.text("Sub Total", boxX, tTop);
+  doc.setFont(theme.font, "bold");
+  doc.setTextColor(...dark);
+  doc.text(money(formData.totalamount), R, tTop, { align: "right" });
+  doc.setDrawColor(...line);
+  doc.setLineWidth(0.2);
+  doc.line(boxX, tTop + 2.5, R, tTop + 2.5);
+  doc.setFillColor(...accent2);
+  doc.rect(boxX, tTop + 5, R - boxX, 9, "F");
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(10);
+  doc.text("TOTAL", boxX + 3, tTop + 11);
+  doc.text(money(formData.totalamount), R - 3, tTop + 11, { align: "right" });
+
+  doc.setFontSize(9);
+  doc.setFont(theme.font, "bold");
+  doc.setTextColor(...accent);
+  doc.text("AMOUNT IN WORDS", M, tTop);
+  doc.setFont(theme.font, "normal");
+  doc.setFontSize(8.5);
+  doc.setTextColor(...gray);
+  const words = doc.splitTextToSize(formData.amountinword || "—", 100);
+  doc.text(words, M, tTop + 5);
+
+  y = Math.max(tTop + 14, tTop + 5 + words.length * 3.8) + 10;
+
+  // ---------- Bank details (left) + signature (right) ----------
+  ensure(42);
+  const bTop = y;
+  doc.setFontSize(9);
+  doc.setFont(theme.font, "bold");
+  doc.setTextColor(...accent);
+  doc.text("PAYMENT DETAILS", M, bTop);
+  doc.setFontSize(8.5);
+  const bankRows = [
+    ["Account Name", companyInfo?.accountName],
+    ["Account No.", companyInfo?.accountNo],
+    ["Bank", companyInfo?.bankName],
+    ["IFSC", companyInfo?.ifscCode],
+    ["Branch", companyInfo?.branch],
+    ["GPay / PhonePe", companyInfo?.gpayPhonepe],
+  ].filter(([, v]) => v);
+  let by = bTop + 5.5;
+  bankRows.forEach(([k, v]) => {
+    doc.setFont(theme.font, "normal");
+    doc.setTextColor(...gray);
+    doc.text(k, M, by);
+    doc.setFont(theme.font, "bold");
+    doc.setTextColor(...dark);
+    doc.text(String(v), M + 32, by);
+    by += 4.2;
+  });
+  if (!bankRows.length) {
+    doc.setFont(theme.font, "normal");
+    doc.setTextColor(...gray);
+    doc.text("—", M, by);
+    by += 4.2;
+  }
+
+  const sigCx = 162;
+  if (signatureType === "image" && companyInfo?.digitalSignature) {
+    try {
+      doc.addImage(companyInfo.digitalSignature, "PNG", 142, bTop + 2, 40, 14);
+    } catch (err) {
+      console.error("Failed to add signature image:", err);
+    }
+  } else {
+    doc.setFont(theme.font, "italic");
+    doc.setFontSize(11);
+    doc.setTextColor(...dark);
+    doc.text(companyInfo?.signatureName || "", sigCx, bTop + 13, { align: "center" });
+  }
+  doc.setDrawColor(...dark);
+  doc.setLineWidth(0.3);
+  doc.line(132, bTop + 19, 192, bTop + 19);
+  doc.setFont(theme.font, "normal");
+  doc.setFontSize(8);
+  doc.setTextColor(...gray);
+  doc.text("Authorised Signatory", sigCx, bTop + 23, { align: "center" });
+  doc.setFont(theme.font, "bold");
+  doc.setFontSize(8.5);
+  doc.setTextColor(...dark);
+  doc.text(compName, sigCx, bTop + 27.5, { align: "center" });
+
+  // ---------- Footer ----------
+  if (theme.header === "band" || theme.header === "side") {
+    doc.setFillColor(...accent);
+    doc.rect(0, 289, 210, 8, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(8);
+    doc.setFont(theme.font, "bold");
+    doc.text("THANK YOU FOR YOUR BUSINESS!", 105, 294.2, { align: "center" });
+  } else {
+    doc.setDrawColor(...accent2);
+    doc.setLineWidth(0.6);
+    doc.line(M, 288, R, 288);
+    doc.setTextColor(...gray);
+    doc.setFontSize(8);
+    doc.setFont(theme.font, "normal");
+    doc.text("Thank you for your business!", 105, 293, { align: "center" });
+  }
+
+  return doc;
+}
+
 /**
  * Build the invoice PDF.
  * @returns {jsPDF}
@@ -603,6 +1070,10 @@ Pan No.: ${companyInfo?.panNo || "DA***3*L"} `;
 export function generateInvoicePdf({ formData, companyInfo, signatureType = "text", pdfDesign = "current", assets }) {
   if (pdfDesign === "new") {
     return generatePremiumPDF(formData, companyInfo, signatureType, assets);
+  }
+  const theme = STANDARD_THEMES[pdfDesign];
+  if (theme) {
+    return generateStandardPDF(formData, companyInfo, signatureType, theme);
   }
   return generateClassicPDF(formData, companyInfo, signatureType);
 }

@@ -16,7 +16,9 @@ import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import PdfPreviewModal from "../components/PdfPreviewModal";
 import { listBills, deleteBill, getCompanyProfile, bumpDownloadCount } from "../lib/billsService";
-import { generateInvoicePdf, loadPdfAssets, invoiceFileName } from "../lib/pdf";
+import { generateInvoicePdf, loadPdfAssets, invoiceFileName, DESIGNS } from "../lib/pdf";
+
+const designName = (id) => DESIGNS.find((d) => d.id === id)?.name || "Classic";
 import { formatINR, formatDateHuman } from "../lib/format";
 
 export default function Bills() {
@@ -255,13 +257,13 @@ export default function Bills() {
                     </td>
                     <td className="px-3 py-3">
                       <span
-                        className={`badge badge-sm font-medium ${
+                        className={`badge badge-sm whitespace-nowrap font-medium ${
                           bill.pdfDesign === "new"
                             ? "border-accent/40 bg-accent/15 text-accent-content"
                             : "border-base-300 bg-base-200 text-base-content/60"
                         }`}
                       >
-                        {bill.pdfDesign === "new" ? "Premium" : "Classic"}
+                        {designName(bill.pdfDesign)}
                       </span>
                     </td>
                     <td className="px-3 py-2 text-right">
@@ -293,13 +295,13 @@ export default function Bills() {
                 </div>
                 <div className="mt-3 flex items-center justify-between border-t border-base-200 pt-2.5">
                   <span
-                    className={`badge badge-sm font-medium ${
+                    className={`badge badge-sm whitespace-nowrap font-medium ${
                       bill.pdfDesign === "new"
                         ? "border-accent/40 bg-accent/15 text-accent-content"
                         : "border-base-300 bg-base-200 text-base-content/60"
                     }`}
                   >
-                    {bill.pdfDesign === "new" ? "Premium" : "Classic"}
+                    {designName(bill.pdfDesign)}
                   </span>
                   <Actions bill={bill} />
                 </div>
