@@ -60,3 +60,17 @@
     color: color-mix(in oklab, var(--color-base-content) 72%, transparent);
   }
 }
+
+/* iOS Safari auto-zooms into any focused field whose font-size is below 16px.
+   Keep every form control at 16px on touch / small screens to prevent that.
+   (Unlayered on purpose so it outranks the layered daisyUI size variants.) */
+@media (max-width: 1023px), (pointer: coarse) {
+  .input,
+  .select,
+  .textarea,
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
