@@ -443,7 +443,7 @@ function generatePremiumPDF(formData, companyInfo, signatureType, assets) {
   doc.setTextColor(...goldColor);
   doc.setFontSize(9);
   doc.setFont(undefined, "bold");
-  doc.text("THANK YOU FOR YOUR BUSINESS!", 105, 292, { align: "center" });
+  doc.text("THANK YOU", 105, 292, { align: "center" });
   doc.setDrawColor(...goldColor);
   doc.line(30, 291, 70, 291);
   doc.line(140, 291, 180, 291);
@@ -601,22 +601,22 @@ Pan No.: ${companyInfo?.panNo || "DA***3*L"} `;
 // The two original designs ("current" classic & "new" premium) stay untouched.
 // ---------------------------------------------------------------------------
 const STANDARD_THEMES = {
-  mono:      { name: "Minimal Mono",   font: "helvetica", header: "minimal", table: "minimal", accent: [17, 17, 17],   soft: [240, 240, 240] },
-  corporate: { name: "Corporate Navy", font: "helvetica", header: "band",    table: "grid",    accent: [21, 44, 91],   soft: [228, 234, 246] },
-  teal:      { name: "Teal Sidebar",   font: "helvetica", header: "side",    table: "striped", accent: [11, 110, 114], soft: [222, 240, 239] },
-  serif:     { name: "Classic Serif",  font: "times",     header: "center",  table: "grid",    accent: [62, 47, 32],   soft: [242, 238, 230] },
-  boldband:  { name: "Bold Amber",     font: "helvetica", header: "band",    table: "striped", accent: [22, 22, 22],   soft: [255, 236, 179], accent2: [255, 179, 0] },
-  graypanel: { name: "Soft Gray",      font: "helvetica", header: "split",   table: "striped", accent: [88, 90, 96],   soft: [238, 239, 241] },
-  emerald:   { name: "Emerald",        font: "helvetica", header: "split",   table: "grid",    accent: [13, 120, 79],  soft: [223, 241, 232] },
-  royal:     { name: "Royal Purple",   font: "helvetica", header: "band",    table: "striped", accent: [76, 40, 130],  soft: [237, 231, 246] },
-  terra:     { name: "Terracotta",     font: "times",     header: "split",   table: "grid",    accent: [169, 78, 47],  soft: [250, 235, 226] },
-  slate:     { name: "Slate Bold",     font: "helvetica", header: "minimal", table: "grid",    accent: [40, 48, 60],   soft: [226, 230, 236], accent2: [235, 87, 56] },
+  mono: { name: "Minimal Mono", font: "helvetica", header: "minimal", table: "minimal", accent: [17, 17, 17], soft: [240, 240, 240] },
+  corporate: { name: "Corporate Navy", font: "helvetica", header: "band", table: "grid", accent: [21, 44, 91], soft: [228, 234, 246] },
+  teal: { name: "Teal Sidebar", font: "helvetica", header: "side", table: "striped", accent: [11, 110, 114], soft: [222, 240, 239] },
+  serif: { name: "Classic Serif", font: "times", header: "center", table: "grid", accent: [62, 47, 32], soft: [242, 238, 230] },
+  boldband: { name: "Bold Amber", font: "helvetica", header: "band", table: "striped", accent: [22, 22, 22], soft: [255, 236, 179], accent2: [255, 179, 0] },
+  graypanel: { name: "Soft Gray", font: "helvetica", header: "split", table: "striped", accent: [88, 90, 96], soft: [238, 239, 241] },
+  emerald: { name: "Emerald", font: "helvetica", header: "split", table: "grid", accent: [13, 120, 79], soft: [223, 241, 232] },
+  royal: { name: "Royal Purple", font: "helvetica", header: "band", table: "striped", accent: [76, 40, 130], soft: [237, 231, 246] },
+  terra: { name: "Terracotta", font: "times", header: "split", table: "grid", accent: [169, 78, 47], soft: [250, 235, 226] },
+  slate: { name: "Slate Bold", font: "helvetica", header: "minimal", table: "grid", accent: [40, 48, 60], soft: [226, 230, 236], accent2: [235, 87, 56] },
 };
 
 /** All selectable designs, in display order. `thumb` drives the visual picker. */
 export const DESIGNS = [
-  { id: "current", name: "Classic",      thumb: { variant: "classic", accent: "#111111", soft: "#e8e8e8", pop: "#111111" } },
-  { id: "new",     name: "Premium Gold", thumb: { variant: "gold",    accent: "#141414", soft: "#f3ead0", pop: "#DAA520" } },
+  { id: "current", name: "Classic", thumb: { variant: "classic", accent: "#111111", soft: "#e8e8e8", pop: "#111111" } },
+  { id: "new", name: "Premium Gold", thumb: { variant: "gold", accent: "#141414", soft: "#f3ead0", pop: "#DAA520" } },
   ...Object.entries(STANDARD_THEMES).map(([id, t]) => ({
     id,
     name: t.name,
@@ -1049,7 +1049,7 @@ function generateStandardPDF(formData, companyInfo, signatureType, theme) {
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(8);
     doc.setFont(theme.font, "bold");
-    doc.text("THANK YOU FOR YOUR BUSINESS!", 105, 294.2, { align: "center" });
+    doc.text("THANK YOU", 105, 294.2, { align: "center" });
   } else {
     doc.setDrawColor(...accent2);
     doc.setLineWidth(0.6);
@@ -1057,7 +1057,7 @@ function generateStandardPDF(formData, companyInfo, signatureType, theme) {
     doc.setTextColor(...gray);
     doc.setFontSize(8);
     doc.setFont(theme.font, "normal");
-    doc.text("Thank you for your business!", 105, 293, { align: "center" });
+    doc.text("Thank you", 105, 293, { align: "center" });
   }
 
   return doc;
