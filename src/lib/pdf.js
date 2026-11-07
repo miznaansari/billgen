@@ -38,6 +38,36 @@ function getBase64ImageFromUrl(imageUrl) {
   });
 }
 
+// ---------------------------------------------------------------------------
+// Per-bill column names. Each bill may rename the five data columns; anything
+// not renamed falls back to the design's own default header.
+// ---------------------------------------------------------------------------
+export const BILL_COLUMNS = [
+  { key: "shootdate", label: "Shoot Date" },
+  { key: "extrasheet", label: "Extra Shift" },
+  { key: "conveyance", label: "Conveyance" },
+  { key: "rateperday", label: "Rate / Day" },
+  { key: "amount", label: "Amount (₹)" },
+];
+
+/** Keep only real renames: trimmed, non-empty and different from the default name. */
+export function cleanColumnLabels(labels) {
+  const out = {};
+  if (!labels) return out;
+  for (const { key, label } of BILL_COLUMNS) {
+    const v = String(labels[key] ?? "").trim();
+    if (v && v.toLowerCase() !== label.toLowerCase()) out[key] = v;
+  }
+  return out;
+}
+
+/** Header text for a column: the bill's rename (upper-cased like the designs) or the design default. */
+function headerLabel(formData, key, designDefault) {
+  const custom = cleanColumnLabels(formData?.columnLabels)[key];
+  // The built-in PDF fonts have no ₹ glyph.
+  return custom ? custom.replace(/₹/g, "Rs").toUpperCase() : designDefault;
+}
+
 let assetsCache = null;
 
 /** Loads (and caches) the images used by the premium design. */
@@ -294,12 +324,12 @@ function generatePremiumPDF(formData, companyInfo, signatureType, assets) {
     startY: boxStartY + boxHeight + 5,
     head: [
       [
-        "DATE",
-        "DESCRIPTION\n(Camera Department)",
-        "POSITION",
+        headerLabel(formData, "shootdate", "DATE"),
+        headerLabel(formData, "extrasheet", "DESCRIPTION\n(Camera Department)"),
+        headerLabel(formData, "conveyance", "POSITION"),
         "NO. OF\nDAYS / SHIFTS",
-        "RATE PER\nDAY (Rs)",
-        "AMOUNT\n(Rs)",
+        headerLabel(formData, "rateperday", "RATE PER\nDAY (Rs)"),
+        headerLabel(formData, "amount", "AMOUNT\n(Rs)"),
       ],
     ],
     body: tableBody,
@@ -524,11 +554,25 @@ Pan No.: ${companyInfo?.panNo || "DA***3*L"} `;
   doc.rect(124, colStartY, 38, 10, "FD");
   doc.rect(162, colStartY, 38, 10, "FD");
 
-  doc.text("SHOOT DATE", 11, colStartY + 7);
-  doc.text("EXTRA SHIFT", 49, colStartY + 7);
-  doc.text("CONVEYANCE", 87, colStartY + 7);
-  doc.text("RATE PER DAY", 125, colStartY + 7);
-  doc.text("AMOUNT", 163, colStartY + 7);
+  // Headers sit in 38mm boxes: one line at 11pt when it fits, otherwise
+  // up to two smaller lines (renamed columns can be longer than the defaults).
+  const drawColHeader = (text, boxX) => {
+    const maxW = 36;
+    doc.setFontSize(11);
+    if (doc.getTextWidth(text) <= maxW) {
+      doc.text(text, boxX + 1, colStartY + 7);
+      return;
+    }
+    doc.setFontSize(8);
+    const lines = doc.splitTextToSize(text, maxW).slice(0, 2);
+    doc.text(lines, boxX + 1, lines.length > 1 ? colStartY + 4.2 : colStartY + 6.5, { lineHeightFactor: 1.15 });
+    doc.setFontSize(11);
+  };
+  drawColHeader(headerLabel(formData, "shootdate", "SHOOT DATE"), 10);
+  drawColHeader(headerLabel(formData, "extrasheet", "EXTRA SHIFT"), 48);
+  drawColHeader(headerLabel(formData, "conveyance", "CONVEYANCE"), 86);
+  drawColHeader(headerLabel(formData, "rateperday", "RATE PER DAY"), 124);
+  drawColHeader(headerLabel(formData, "amount", "AMOUNT"), 162);
 
   const { shootdate, extrasheet, conveyance, rateperday, amount } = formData;
   const maxRows = Math.max(
@@ -912,7 +956,14 @@ function generateStandardPDF(formData, companyInfo, signatureType, theme) {
   autoTable(doc, {
     startY: y,
     margin: { left: M, right: 14 },
-    head: [["#", "SHOOT DATE", "EXTRA SHIFT", "CONVEYANCE", "RATE / DAY", "AMOUNT (Rs)"]],
+    head: [[
+      "#",
+      headerLabel(formData, "shootdate", "SHOOT DATE"),
+      headerLabel(formData, "extrasheet", "EXTRA SHIFT"),
+      headerLabel(formData, "conveyance", "CONVEYANCE"),
+      headerLabel(formData, "rateperday", "RATE / DAY"),
+      headerLabel(formData, "amount", "AMOUNT (Rs)"),
+    ]],
     body,
     theme: tableTheme,
     styles: { font: theme.font, fontSize: 8.5, cellPadding: 2.6, halign: "center", valign: "middle", textColor: dark, ...bodyStyles },

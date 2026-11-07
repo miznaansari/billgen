@@ -15,6 +15,8 @@ import {
   Loader2,
   Building2,
   Check,
+  Pencil,
+  RotateCcw,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
@@ -31,7 +33,14 @@ import {
   bumpDownloadCount,
   suggestNextBillNo,
 } from "../lib/billsService";
-import { generateInvoicePdf, loadPdfAssets, invoiceFileName, DESIGNS } from "../lib/pdf";
+import {
+  generateInvoicePdf,
+  loadPdfAssets,
+  invoiceFileName,
+  DESIGNS,
+  BILL_COLUMNS,
+  cleanColumnLabels,
+} from "../lib/pdf";
 import { amountInWords } from "../lib/numberToWords";
 import { formatINR, formatDateHuman, todayISO } from "../lib/format";
 import { track } from "../firebase";
@@ -55,7 +64,11 @@ const EMPTY_FORM = {
   conveyance: [""],
   rateperday: [""],
   amount: [""],
+  // Per-bill column renames, e.g. { conveyance: "Travel" }. Empty = default names.
+  columnLabels: {},
 };
+
+const DEFAULT_COL_NAME = Object.fromEntries(BILL_COLUMNS.map((c) => [c.key, c.label]));
 
 /** Recalculate total + words from the amount column. */
 function withTotals(data) {
@@ -63,17 +76,18 @@ function withTotals(data) {
   return { ...data, totalamount: total.toFixed(2), amountinword: amountInWords(total) };
 }
 
-function SectionCard({ icon: Icon, title, subtitle, children }) {
+function SectionCard({ icon: Icon, title, subtitle, action, children }) {
   return (
     <section className="surface p-4 sm:p-5">
       <div className="mb-4 flex items-center gap-2.5">
-        <span className="grid h-8 w-8 place-items-center rounded-lg bg-primary/10 text-primary">
+        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
           <Icon className="h-4 w-4" />
         </span>
-        <div>
+        <div className="min-w-0 flex-1">
           <h2 className="text-sm font-bold leading-tight">{title}</h2>
           {subtitle && <p className="text-xs text-base-content/50">{subtitle}</p>}
         </div>
+        {action}
       </div>
       {children}
     </section>
@@ -168,6 +182,7 @@ export default function BillForm() {
       conveyance: copyArr(source.conveyance),
       rateperday: copyArr(source.rateperday),
       amount: copyArr(source.amount),
+      columnLabels: { ...(source.columnLabels || {}) },
     };
     // Older bills were saved without labels — keep the array in step with the dates.
     base.shootlabel = base.shootdate.map((_, i) => source.shootlabel?.[i] || "");
@@ -220,6 +235,14 @@ export default function BillForm() {
 
   const rowCount = formData.shootdate.length;
 
+  // ---- Column names (this bill only) ----
+  const [renamingCols, setRenamingCols] = useState(false);
+  const colName = (key) => formData.columnLabels?.[key]?.trim() || DEFAULT_COL_NAME[key];
+  const hasColRenames = Object.keys(cleanColumnLabels(formData.columnLabels)).length > 0;
+  const setColumnLabel = (key, value) =>
+    setFormData((f) => ({ ...f, columnLabels: { ...f.columnLabels, [key]: value } }));
+  const resetColumnLabels = () => setFormData((f) => ({ ...f, columnLabels: {} }));
+
   // ---- Autocomplete sources ----
   const clientOptions = suggestions?.clients || [];
   const projectOptions = suggestions?.projects || [];
@@ -266,7 +289,13 @@ export default function BillForm() {
   };
 
   const persistBill = async () => {
-    const payload = { ...withTotals(formData), signatureType, pdfDesign };
+    const payload = {
+      ...withTotals(formData),
+      // Always written (even as {}) so resetting clears renames saved earlier.
+      columnLabels: cleanColumnLabels(formData.columnLabels),
+      signatureType,
+      pdfDesign,
+    };
     let saved;
     if (editId) {
       saved = await updateBill(user.uid, editId, payload);
@@ -474,14 +503,59 @@ export default function BillForm() {
             icon={CalendarDays}
             title="Work Days & Amounts"
             subtitle="One row per shoot day — the total is calculated automatically"
+            action={
+              <button
+                type="button"
+                onClick={() => setRenamingCols((v) => !v)}
+                className={`btn btn-ghost btn-xs shrink-0 gap-1 border ${
+                  renamingCols ? "border-primary text-primary" : "border-base-300"
+                }`}
+                aria-expanded={renamingCols}
+              >
+                {renamingCols ? <Check className="h-3.5 w-3.5" /> : <Pencil className="h-3.5 w-3.5" />}
+                {renamingCols ? "Done" : "Rename columns"}
+                {!renamingCols && hasColRenames && <span className="h-1.5 w-1.5 rounded-full bg-primary" />}
+              </button>
+            }
           >
+            {renamingCols && (
+              <div className="mb-4 rounded-xl border border-base-300 bg-base-200/40 p-3">
+                <p className="mb-2.5 text-xs text-base-content/55">
+                  Rename columns for <b>this bill only</b>. Leave a box empty to keep the default name.
+                </p>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-5">
+                  {BILL_COLUMNS.map((c) => (
+                    <div key={c.key} className="min-w-0">
+                      <label className="field-label" htmlFor={`col-${c.key}`}>{c.label}</label>
+                      <input
+                        id={`col-${c.key}`}
+                        type="text"
+                        maxLength={30}
+                        className="input input-sm w-full"
+                        placeholder={c.label}
+                        value={formData.columnLabels?.[c.key] || ""}
+                        onChange={(e) => setColumnLabel(c.key, e.target.value)}
+                      />
+                    </div>
+                  ))}
+                </div>
+                {hasColRenames && (
+                  <button
+                    type="button"
+                    onClick={resetColumnLabels}
+                    className="mt-2.5 inline-flex items-center gap-1 text-xs font-semibold text-base-content/55 hover:text-error"
+                  >
+                    <RotateCcw className="h-3 w-3" /> Reset to default names
+                  </button>
+                )}
+              </div>
+            )}
+
             {/* Desktop header */}
             <div className="mb-2 hidden grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_2.25rem] gap-2 px-0.5 text-[11px] font-semibold uppercase tracking-wide text-base-content/45 md:grid">
-              <span>Shoot Date</span>
-              <span>Extra Shift</span>
-              <span>Conveyance</span>
-              <span>Rate / Day</span>
-              <span>Amount (₹)</span>
+              {BILL_COLUMNS.map((c) => (
+                <span key={c.key} className="truncate" title={colName(c.key)}>{colName(c.key)}</span>
+              ))}
               <span />
             </div>
 
@@ -496,7 +570,7 @@ export default function BillForm() {
                   </span>
 
                   <div className="col-span-2 md:col-span-1">
-                    <span className="field-label md:hidden">Shoot Date</span>
+                    <span className="field-label md:hidden">{colName("shootdate")}</span>
                     <input
                       type="date"
                       className="input input-sm md:input-md w-full"
@@ -512,7 +586,7 @@ export default function BillForm() {
                     />
                   </div>
                   <div>
-                    <span className="field-label md:hidden">Extra Shift</span>
+                    <span className="field-label md:hidden">{colName("extrasheet")}</span>
                     <input
                       type="text"
                       className="input input-sm md:input-md w-full"
@@ -522,7 +596,7 @@ export default function BillForm() {
                     />
                   </div>
                   <div>
-                    <span className="field-label md:hidden">Conveyance</span>
+                    <span className="field-label md:hidden">{colName("conveyance")}</span>
                     <input
                       type="text"
                       className="input input-sm md:input-md w-full"
@@ -532,7 +606,7 @@ export default function BillForm() {
                     />
                   </div>
                   <div>
-                    <span className="field-label md:hidden">Rate / Day</span>
+                    <span className="field-label md:hidden">{colName("rateperday")}</span>
                     <input
                       type="text"
                       inputMode="decimal"
@@ -543,7 +617,7 @@ export default function BillForm() {
                     />
                   </div>
                   <div>
-                    <span className="field-label md:hidden">Amount (₹)</span>
+                    <span className="field-label md:hidden">{colName("amount")}</span>
                     <input
                       type="text"
                       inputMode="decimal"
